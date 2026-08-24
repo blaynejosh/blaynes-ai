@@ -94,24 +94,44 @@ const CATEGORY_CONTEXT = {
 };
 
 /**
- * Builds the system prompt for one request. The stable identity comes first so
- * it stays inside the cached prefix; the per-session framing is appended after.
+ * Injected only on the first user turn of a session, and only when the
+ * tester has no brand materials saved yet (server/index.js checks
+ * profiles.brand_kit_completed before setting this). Scoped to that one
+ * turn on purpose: once the tester replies — with files, or by saying to
+ * proceed without — the conversation continues normally and this is not
+ * repeated, so it reads as one good intake question, not a recurring gate.
  */
-export function buildSystem(category, topic) {
-  const ctx = CATEGORY_CONTEXT[category];
-  if (!ctx) return [{ type: 'text', text: BASE_IDENTITY }];
+const ASK_FOR_BRAND_MATERIALS = `
 
-  let framing = `\n\n# This session\n\nThe client is working in the ${ctx.label} view of the Blayne Product Map.`;
-  if (topic) {
-    framing += ` They have selected **${topic}** — ${ctx.framing}. Anchor your answer there unless they steer elsewhere.`;
-  } else {
-    framing += ` Answers should be framed around ${ctx.framing}.`;
-  }
+# Before you address this
 
-  return [
+This is the first message of a new session, and this client has not shared any brand or business materials yet. Before working on what they just asked, acknowledge their message in a sentence, then ask whether they have brand guidelines, a brand manual, a company profile, or any other business documents they can share — say briefly that it lets you match their actual brand and business rather than producing something generic. Mention they can attach files directly in this chat.
+
+Keep it to a few sentences. Do not produce the full deliverable yet — wait for their reply. If they say they have nothing to share, or ask you to proceed anyway, do your best with what you have from then on, the same as you would for any client with limited context to give.`;
+
+/**
+ * Builds the system prompt for one request. The stable identity comes first so
+ * it stays inside the cached prefix; everything after it is per-request and
+ * uncached.
+ */
+export function buildSystem(category, topic, { needsBrandAsk = false } = {}) {
+  const blocks = [
     // Cached: identical on every request, so it bills at cache-read rates.
     { type: 'text', text: BASE_IDENTITY, cache_control: { type: 'ephemeral' } },
-    // Not cached: varies with the selected category and item.
-    { type: 'text', text: framing },
   ];
+
+  const ctx = CATEGORY_CONTEXT[category];
+  if (ctx) {
+    let framing = `\n\n# This session\n\nThe client is working in the ${ctx.label} view of the Blayne Product Map.`;
+    framing += topic
+      ? ` They have selected **${topic}** — ${ctx.framing}. Anchor your answer there unless they steer elsewhere.`
+      : ` Answers should be framed around ${ctx.framing}.`;
+    blocks.push({ type: 'text', text: framing });
+  }
+
+  if (needsBrandAsk) {
+    blocks.push({ type: 'text', text: ASK_FOR_BRAND_MATERIALS });
+  }
+
+  return blocks;
 }

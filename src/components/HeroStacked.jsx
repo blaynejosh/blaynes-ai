@@ -1,6 +1,8 @@
 import { Link } from 'react-router-dom';
 import HeroBackdrop from './HeroBackdrop.jsx';
 import BlayneMark from './BlayneMark.jsx';
+import AccountMenu from './auth/AccountMenu.jsx';
+import SearchBox from './SearchBox.jsx';
 import { HERO_NODES } from '../data/heroNodes.js';
 
 /**
@@ -36,14 +38,10 @@ export default function HeroStacked() {
           <BlayneMark className="h-11 w-11" />
         </Link>
 
-        <Link
-          to="/features"
-          aria-label="Search the Product Map"
-          className="pressable material-chip flex items-center gap-3 rounded-full bg-white/20 px-4 py-2.5 text-sm text-platinum no-underline transition-colors hover:bg-white/30 focus-visible:ring-2 focus-visible:ring-jordy focus-visible:outline-none"
-        >
-          <span className="h-2.5 w-2.5 rounded-full bg-jordy" />
-          Search
-        </Link>
+        <div className="flex items-center gap-3">
+          <SearchBox variant="inline" />
+          <AccountMenu />
+        </div>
       </div>
 
       <div className="relative mt-14 flex flex-col items-center text-center">

@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom';
 import HeroBackdrop from './HeroBackdrop.jsx';
 import BlayneMark from './BlayneMark.jsx';
 import NodePill from './NodePill.jsx';
+import AccountMenu from './auth/AccountMenu.jsx';
+import SearchBox from './SearchBox.jsx';
 import { box, ink } from '../lib/stage.js';
 import { HERO_NODES } from '../data/heroNodes.js';
 
@@ -40,15 +42,14 @@ export default function HeroStage() {
         <BlayneMark className="h-full w-full" />
       </Link>
 
-      <NodePill
-        as={Link}
-        tone="glass"
-        to="/features"
-        aria-label="Search the Product Map"
-        style={{ ...box(1102, 45), position: 'absolute' }}
-      >
-        Search
-      </NodePill>
+      <SearchBox variant="stage" />
+
+      {/* Same header row as the logo and Search — sits inside the design's
+          established right margin (the pill's right edge already meets it),
+          so the avatar goes just left of Search rather than past it. */}
+      <div style={{ ...box(1046, 45), position: 'absolute' }}>
+        <AccountMenu />
+      </div>
 
       {/* ---------------- the four Product Map entry points ---------------- */}
       {HERO_NODES.map((node) => (

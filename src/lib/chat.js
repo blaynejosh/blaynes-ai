@@ -4,9 +4,20 @@
  * The server streams Server-Sent Events; this reads them off the response body
  * and hands each chunk to the caller so the UI can render as the answer lands.
  * No API key is involved on this side — the key lives only on the server.
+ *
+ * Every request carries the signed-in tester's Supabase access token, which
+ * the server verifies before doing anything else (see server/index.js).
  */
+import { supabase } from './supabase.js';
 
 const DECODER = new TextDecoder();
+
+async function authHeader() {
+  const { data } = await supabase.auth.getSession();
+  const token = data.session?.access_token;
+  if (!token) throw new Error('Your session has expired. Sign in again to continue.');
+  return { authorization: `Bearer ${token}` };
+}
 
 /**
  * Streams one answer.
@@ -17,12 +28,12 @@ const DECODER = new TextDecoder();
  * @param {Array}    opts.messages  Conversation so far: {role, content}.
  * @param {AbortSignal} [opts.signal]
  * @param {(chunk: string) => void} opts.onText  Called per streamed fragment.
- * @returns {Promise<{stopReason?: string, refused?: string}>}
+ * @returns {Promise<{stopReason?: string, refused?: string, usage?: {used:number,limit:number}}>}
  */
 export async function streamReply({ category, topic, messages, signal, onText }) {
   const res = await fetch('/api/chat', {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    headers: { 'content-type': 'application/json', ...(await authHeader()) },
     body: JSON.stringify({ category, topic, messages }),
     signal,
   });
@@ -67,10 +78,19 @@ export async function streamReply({ category, topic, messages, signal, onText })
 
       if (event.type === 'text') onText(event.text);
       else if (event.type === 'error') throw new Error(event.message);
-      else if (event.type === 'refused') result = { refused: event.message };
-      else if (event.type === 'done') result = { stopReason: event.stop_reason };
+      else if (event.type === 'refused')
+        result = { refused: event.message, usage: event.blayne_usage };
+      else if (event.type === 'done')
+        result = { stopReason: event.stop_reason, usage: event.blayne_usage };
     }
   }
 
   return result;
+}
+
+/** Today's message count for the signed-in tester, for the "X/25 today" indicator. */
+export async function fetchUsage() {
+  const res = await fetch('/api/usage', { headers: await authHeader() });
+  if (!res.ok) return null;
+  return res.json();
 }

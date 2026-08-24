@@ -1,13 +1,17 @@
 import { useState, useId, useRef, useEffect, useCallback } from 'react';
-import { useParams, Navigate } from 'react-router-dom';
+import { useParams, useSearchParams, Navigate } from 'react-router-dom';
 import ChatBackdrop from './ChatBackdrop.jsx';
 import ChatNav from './ChatNav.jsx';
 import ChatMessage from './ChatMessage.jsx';
-import { streamReply } from '../lib/chat.js';
+import { streamReply, fetchUsage } from '../lib/chat.js';
+import { listBrandAssets, uploadBrandAssets, deleteBrandAsset } from '../lib/brandAssets.js';
 import { MAP_SECTIONS } from '../data/productMap.js';
 
 const itemLabel = (item) => (typeof item === 'string' ? item : item.label);
 const itemMeta = (item) => (typeof item === 'string' ? null : item.meta);
+
+const BRAND_FILE_ACCEPT =
+  '.pdf,.doc,.docx,.ppt,.pptx,.png,.jpg,.jpeg,.webp,.txt,.md';
 
 /**
  * The chat surface, from "AI chat area - *.svg": the category list on the
@@ -24,6 +28,7 @@ const itemMeta = (item) => (typeof item === 'string' ? null : item.meta);
  */
 export default function ChatPage() {
   const { category } = useParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const section = MAP_SECTIONS.find((s) => s.id === category);
 
   const [selected, setSelected] = useState(null);
@@ -31,11 +36,57 @@ export default function ChatPage() {
   const [messages, setMessages] = useState([]);
   const [streaming, setStreaming] = useState(false);
   const [error, setError] = useState(null);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  // Open by default: on mobile this is an overlay drawer, on desktop it's the
+  // static 360px column. Either way the toggle in ChatNav collapses it, and
+  // selecting an item only auto-collapses the *mobile* overlay (see below) —
+  // desktop stays open so picking another item doesn't hide the list.
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [usage, setUsage] = useState(null); // { used, limit } — see server /api/usage
+  const [brandAssets, setBrandAssets] = useState([]);
+  const [brandBusy, setBrandBusy] = useState(false);
+  const [brandError, setBrandError] = useState(null);
 
   const inputId = useId();
   const abortRef = useRef(null);
   const scrollRef = useRef(null);
+  const fileInputRef = useRef(null);
+
+  useEffect(() => {
+    fetchUsage().then(setUsage);
+  }, [category]);
+
+  // Brand materials are account-wide, not per-category, so load once — the
+  // route's :category param changes without remounting this component.
+  useEffect(() => {
+    listBrandAssets().then(setBrandAssets).catch(() => {});
+  }, []);
+
+  const addFiles = async (fileList) => {
+    const files = Array.from(fileList ?? []);
+    if (!files.length) return;
+    setBrandBusy(true);
+    setBrandError(null);
+    try {
+      const added = await uploadBrandAssets(files);
+      setBrandAssets((prev) => [...prev, ...added]);
+    } catch (err) {
+      setBrandError(err.message);
+    } finally {
+      setBrandBusy(false);
+    }
+  };
+
+  const removeAsset = async (id) => {
+    setBrandError(null);
+    const prev = brandAssets;
+    setBrandAssets((list) => list.filter((a) => a.id !== id)); // optimistic
+    try {
+      await deleteBrandAsset(id);
+    } catch (err) {
+      setBrandAssets(prev); // roll back
+      setBrandError(err.message);
+    }
+  };
 
   // Follow the answer as it streams in.
   useEffect(() => {
@@ -48,9 +99,17 @@ export default function ChatPage() {
   useEffect(() => {
     abortRef.current?.abort();
     setMessages([]);
-    setSelected(null);
     setError(null);
     setStreaming(false);
+
+    // A search result arrives as /:category?topic=<label> — pre-select that
+    // item, then drop the param so it doesn't linger in the address bar.
+    const topicParam = searchParams.get('topic');
+    const match = topicParam && section?.items.find((item) => itemLabel(item) === topicParam);
+    setSelected(match ? itemLabel(match) : null);
+    if (topicParam) setSearchParams({}, { replace: true });
+    // Only re-run when the route's category segment changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [category]);
 
   const send = useCallback(
@@ -72,7 +131,7 @@ export default function ChatPage() {
         });
 
       try {
-        const { refused } = await streamReply({
+        const { refused, usage: nextUsage } = await streamReply({
           category,
           topic,
           messages: history.map(({ role, content }) => ({ role, content })),
@@ -80,6 +139,7 @@ export default function ChatPage() {
           onText: append,
         });
         if (refused) append(refused);
+        if (nextUsage) setUsage(nextUsage);
       } catch (err) {
         if (err.name === 'AbortError') {
           // Drop the empty assistant turn the user cancelled.
@@ -100,10 +160,12 @@ export default function ChatPage() {
 
   if (!section) return <Navigate to="/features" replace />;
 
+  const atLimit = usage && usage.used >= usage.limit;
+
   const submit = (e) => {
     e.preventDefault();
     const text = prompt.trim();
-    if (!text || streaming) return;
+    if (!text || streaming || atLimit) return;
     setPrompt('');
     send(text, selected);
   };
@@ -134,7 +196,9 @@ export default function ChatPage() {
             aria-label={`${section.title} list`}
             className={`${
               sidebarOpen ? 'flex' : 'hidden'
-            } material-sheet scrollbar-hidden absolute inset-x-5 top-20 z-10 max-h-[70svh] flex-col overflow-y-auto rounded-2xl p-4 shadow-2xl ring-1 ring-jordy/20 md:static md:z-auto md:flex md:h-full md:w-[360px] md:shrink-0 md:p-0 md:shadow-none md:ring-0`}
+            } material-sheet scrollbar-hidden absolute inset-x-5 top-20 z-10 max-h-[70svh] min-h-0 flex-col overflow-y-auto rounded-2xl p-4 shadow-2xl ring-1 ring-jordy/20 md:static md:z-auto md:h-full md:min-h-0 md:w-[360px] md:shrink-0 md:p-0 md:shadow-none md:ring-0 ${
+              sidebarOpen ? 'md:flex' : 'md:hidden'
+            }`}
           >
             <h1 className="sr-only">{section.title}</h1>
             <ul className="m-0 flex list-none flex-col gap-px p-0 md:gap-0">
@@ -148,7 +212,11 @@ export default function ChatPage() {
                       type="button"
                       onClick={() => {
                         setSelected(active ? null : label);
-                        setSidebarOpen(false);
+                        // Only the mobile overlay should auto-close on pick;
+                        // the desktop column stays open across selections.
+                        if (window.matchMedia('(max-width: 767px)').matches) {
+                          setSidebarOpen(false);
+                        }
                       }}
                       aria-pressed={active}
                       className={`pressable w-full cursor-pointer rounded-lg border-0 bg-transparent px-3 py-2 text-left text-[15.5px] tracking-[0.048em] transition-colors focus-visible:ring-2 focus-visible:ring-jordy focus-visible:outline-none md:px-2 md:py-[6px] ${
@@ -210,20 +278,95 @@ export default function ChatPage() {
               )}
             </div>
 
-            <form onSubmit={submit} className="mt-6 shrink-0">
-              <label htmlFor={inputId} className="mb-3 block text-[15.5px] text-platinum/75">
-                {selected
-                  ? `Briefing B.L.A.Y.N.E on ${selected}`
-                  : 'Select a feature from the left or input your prompt here'}
-              </label>
+            {/* --------------------------- brand materials --------------------------- */}
+            {(brandAssets.length > 0 || brandBusy) && (
+              <ul className="m-0 mb-3 flex list-none flex-wrap gap-2 p-0">
+                {brandAssets.map((asset) => (
+                  <li
+                    key={asset.id}
+                    className="flex items-center gap-2 rounded-full bg-jordy/10 py-1.5 pr-1.5 pl-3 text-xs text-platinum/80"
+                  >
+                    <span className="max-w-[160px] truncate">{asset.file_name}</span>
+                    <button
+                      type="button"
+                      onClick={() => removeAsset(asset.id)}
+                      aria-label={`Remove ${asset.file_name}`}
+                      className="pressable grid h-5 w-5 shrink-0 cursor-pointer place-items-center rounded-full border-0 bg-transparent text-platinum/50 hover:text-platinum"
+                    >
+                      ✕
+                    </button>
+                  </li>
+                ))}
+                {brandBusy && (
+                  <li className="rounded-full bg-jordy/10 px-3 py-1.5 text-xs text-platinum/55">
+                    Uploading…
+                  </li>
+                )}
+              </ul>
+            )}
+            {brandError && (
+              <p role="alert" className="m-0 mb-3 text-xs text-poppy">
+                {brandError}
+              </p>
+            )}
 
-              <div className="flex items-center gap-3 rounded-[13px] bg-delft py-2 pr-2 pl-5">
+            <form onSubmit={submit} className="mt-6 shrink-0">
+              <div className="mb-3 flex items-baseline justify-between gap-3">
+                <label htmlFor={inputId} className="text-[15.5px] text-platinum/75">
+                  {atLimit
+                    ? "You've used today's messages"
+                    : selected
+                      ? `Briefing B.L.A.Y.N.E on ${selected}`
+                      : 'Select a feature from the left or input your prompt here'}
+                </label>
+                {usage && (
+                  <span className="shrink-0 text-xs text-platinum/45 tabular-nums">
+                    {usage.used}/{usage.limit} today
+                  </span>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2 rounded-[13px] bg-delft py-2 pr-2 pl-2">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  multiple
+                  accept={BRAND_FILE_ACCEPT}
+                  onChange={(e) => {
+                    addFiles(e.target.files);
+                    e.target.value = '';
+                  }}
+                  className="hidden"
+                />
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={brandBusy}
+                  aria-label="Attach brand or business documents"
+                  title="Attach brand or business documents"
+                  className="pressable grid h-9 w-9 shrink-0 cursor-pointer place-items-center rounded-full border-0 bg-transparent text-platinum/60 transition-colors hover:bg-white/10 hover:text-platinum focus-visible:ring-2 focus-visible:ring-jordy focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
+                    <path
+                      d="M12.5 6.5 7 12a2.5 2.5 0 1 1-3.5-3.5L9 3a1.7 1.7 0 1 1 2.5 2.5L6 11"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.4"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                </button>
                 <input
                   id={inputId}
                   value={prompt}
                   onChange={(e) => setPrompt(e.target.value)}
-                  disabled={streaming}
-                  placeholder="Type in your prompt, I'll do the heavy work."
+                  disabled={streaming || atLimit}
+                  placeholder={
+                    atLimit
+                      ? 'Come back tomorrow for 25 more messages.'
+                      : "Type in your prompt, I'll do the heavy work."
+                  }
                   className="min-w-0 flex-1 border-0 bg-transparent py-2 text-[15.5px] text-platinum placeholder:text-platinum/45 focus:outline-none disabled:opacity-60"
                 />
                 {streaming ? (
@@ -238,8 +381,9 @@ export default function ChatPage() {
                 ) : (
                   <button
                     type="submit"
+                    disabled={atLimit}
                     aria-label="Send prompt"
-                    className="pressable grid h-9 w-9 shrink-0 cursor-pointer place-items-center rounded-full border-0 bg-transparent text-white transition-colors hover:bg-white/15 focus-visible:ring-2 focus-visible:ring-jordy focus-visible:outline-none"
+                    className="pressable grid h-9 w-9 shrink-0 cursor-pointer place-items-center rounded-full border-0 bg-transparent text-white transition-colors hover:bg-white/15 focus-visible:ring-2 focus-visible:ring-jordy focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-40"
                   >
                     <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
                       <g stroke="currentColor" strokeWidth="2" strokeLinecap="round">

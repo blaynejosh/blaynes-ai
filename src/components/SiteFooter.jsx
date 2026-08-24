@@ -4,10 +4,10 @@ import { MAP_SECTIONS } from '../data/productMap.js';
 
 /* Contact details as published on Blayne's Consulting document footers. */
 const SITE = 'www.blaynesconsulting.com';
-const EMAIL = 'contact@blaynesconsulting.com';
+const EMAIL = 'team@blaynes.consulting';
 
 const COMPANY = [
-  { label: 'How we work', href: '#features' },
+  { label: 'How we work', to: '/how-we-work' },
   { label: 'The Product Map', href: '#features' },
   { label: 'Start a session', to: '/features' },
 ];
@@ -113,10 +113,24 @@ export default function SiteFooter() {
           </div>
         </div>
 
-        <div className="mt-14 flex flex-col gap-3 border-t border-jordy/15 pt-8 text-xs text-platinum/45 sm:flex-row sm:items-center sm:justify-between">
+        <div className="mt-14 flex flex-col gap-4 border-t border-jordy/15 pt-8 text-xs text-platinum/45 sm:flex-row sm:items-center sm:justify-between">
           <p className="m-0">
             © {new Date().getFullYear()} Blayne&rsquo;s Consulting. All rights reserved.
           </p>
+          <nav aria-label="Legal" className="flex items-center gap-5">
+            <Link to="/terms" className="pressable-text no-underline transition-colors hover:text-platinum/75">
+              Terms of Use
+            </Link>
+            <Link to="/privacy" className="pressable-text no-underline transition-colors hover:text-platinum/75">
+              Privacy Policy
+            </Link>
+            <Link
+              to="/safety-addendum"
+              className="pressable-text no-underline transition-colors hover:text-platinum/75"
+            >
+              AI Safety Addendum
+            </Link>
+          </nav>
           <p className="m-0">B.L.A.Y.N.E AI</p>
         </div>
       </div>

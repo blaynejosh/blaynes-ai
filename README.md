@@ -78,9 +78,49 @@ Skills execute in a code-execution container, which is why requests carry the `c
 
 ## Deploying
 
-The front end builds to static files, but **the API needs a Node runtime** — a static-only host will serve the site with every chat failing. Deep links (`/features`) also need SPA fallback to `index.html`.
+The front end builds to static files, but **the API needs a Node runtime** — a static-only host will serve the site with every chat failing. `server/index.js` already serves the built `dist/` and falls back to `index.html` for client routes (`/login`, `/features`, …) in production, so one process handles both.
 
-Set `ANTHROPIC_API_KEY` in the host's environment. Never commit it.
+**Claude runs through the standard first-party Anthropic API here — not Vertex AI.** Vertex doesn't support the Skills API, code execution, or the Files API, and this app's skill set and brand-document upload both depend on those. Deploying to GCP means running this Node process on GCP compute with the same `ANTHROPIC_API_KEY` env var it already uses locally — not a separate Claude↔GCP integration.
+
+### Google Cloud Run
+
+`Dockerfile`, `.dockerignore`, and `cloudbuild.yaml` are in the repo. The one thing worth understanding before running any commands: `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` are not secret, but Vite bakes them into the static JS bundle at **build** time — they have to arrive as Docker `--build-arg`s, not as a Cloud Run runtime env var, or the deployed site throws "Missing VITE_SUPABASE_URL" in the browser.
+
+```bash
+# One-time setup
+gcloud config set project YOUR_PROJECT_ID
+gcloud services enable run.googleapis.com cloudbuild.googleapis.com \
+  artifactregistry.googleapis.com secretmanager.googleapis.com
+gcloud artifacts repositories create blayne --repository-format=docker \
+  --location=us-central1
+
+# Secrets (server-side only — never baked into the client bundle)
+echo -n "sk-ant-..." | gcloud secrets create ANTHROPIC_API_KEY --data-file=-
+echo -n "eyJ..." | gcloud secrets create SUPABASE_SERVICE_ROLE_KEY --data-file=-
+
+# Build (Cloud Build — no local Docker needed)
+gcloud builds submit --config cloudbuild.yaml \
+  --substitutions=_VITE_SUPABASE_URL="https://your-project.supabase.co",_VITE_SUPABASE_ANON_KEY="eyJ..."
+
+# Deploy
+gcloud run deploy blayne-web \
+  --image=us-central1-docker.pkg.dev/YOUR_PROJECT_ID/blayne/blayne-web:$(git rev-parse --short HEAD) \
+  --region=us-central1 \
+  --allow-unauthenticated \
+  --timeout=600 \
+  --set-secrets=ANTHROPIC_API_KEY=ANTHROPIC_API_KEY:latest,SUPABASE_SERVICE_ROLE_KEY=SUPABASE_SERVICE_ROLE_KEY:latest \
+  --set-env-vars=VITE_SUPABASE_URL=https://your-project.supabase.co,BLAYNE_DAILY_LIMIT=25
+```
+
+`--timeout=600` matters — chat answers stream over a long-lived connection, and Cloud Run's default 300s timeout is tight for a long consulting answer with skills and adaptive thinking. `--set-secrets` maps a Secret Manager secret into the container at runtime, access-controlled separately from the Cloud Run service config; a plain `--set-env-vars` value is visible to anyone with viewer IAM on the project.
+
+**Custom domain:**
+
+```bash
+gcloud run domain-mappings create --service=blayne-web --domain=yourdomain.com --region=us-central1
+```
+
+Add the DNS records it prints, then update both Supabase (**Authentication → URL Configuration** — Site URL + Redirect URLs) and the Google OAuth client (**Authorized JavaScript origins**) to the production domain.
 
 ## Known gaps
 

@@ -109,17 +109,19 @@ export default function ChatPage() {
   };
 
   return (
-    <div className="relative flex min-h-svh flex-col bg-delft">
+    <div className="relative flex h-svh flex-col overflow-hidden bg-delft">
       <ChatBackdrop
         className="pointer-events-none fixed inset-0 h-full w-full"
         preserveAspectRatio="xMidYMid slice"
       />
 
-      <div className="relative mx-auto flex min-h-svh w-full max-w-[1440px] flex-col">
-        <ChatNav
-          sidebarOpen={sidebarOpen}
-          onToggleSidebar={() => setSidebarOpen((v) => !v)}
-        />
+      <div className="relative mx-auto flex h-full w-full max-w-[1440px] flex-col">
+        <div className="shrink-0">
+          <ChatNav
+            sidebarOpen={sidebarOpen}
+            onToggleSidebar={() => setSidebarOpen((v) => !v)}
+          />
+        </div>
 
         {/*
           Body insets follow the export at 1440: list text at x=72, panel from
@@ -132,7 +134,7 @@ export default function ChatPage() {
             aria-label={`${section.title} list`}
             className={`${
               sidebarOpen ? 'flex' : 'hidden'
-            } material-sheet absolute inset-x-5 top-20 z-10 max-h-[70svh] flex-col overflow-y-auto rounded-2xl p-4 shadow-2xl ring-1 ring-jordy/20 md:static md:z-auto md:flex md:max-h-none md:w-[360px] md:shrink-0 md:p-0 md:shadow-none md:ring-0`}
+            } material-sheet scrollbar-hidden absolute inset-x-5 top-20 z-10 max-h-[70svh] flex-col overflow-y-auto rounded-2xl p-4 shadow-2xl ring-1 ring-jordy/20 md:static md:z-auto md:flex md:h-full md:w-[360px] md:shrink-0 md:p-0 md:shadow-none md:ring-0`}
           >
             <h1 className="sr-only">{section.title}</h1>
             <ul className="m-0 flex list-none flex-col gap-px p-0 md:gap-0">

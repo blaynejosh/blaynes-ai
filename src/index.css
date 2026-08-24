@@ -112,6 +112,17 @@ body {
   -webkit-backdrop-filter: blur(12px) saturate(150%);
 }
 
+/* Scrollable, but the scrollbar never draws — wheel/trackpad scrolling
+   still works over the container, it just stays invisible. */
+.scrollbar-hidden {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.scrollbar-hidden::-webkit-scrollbar {
+  display: none;
+}
+
 /* ------------------------------------------------------------------
    Accessibility preferences.
 

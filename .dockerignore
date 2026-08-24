@@ -1,0 +1,12 @@
+node_modules
+dist
+.vite
+.env
+.env.*
+!.env.example
+.git
+.claude
+design
+scripts
+*.log
+npm-debug.log*

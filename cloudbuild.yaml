@@ -1,0 +1,32 @@
+# Builds the container on Cloud Build (so you don't need Docker installed
+# locally) and pushes it to Artifact Registry.
+#
+#   gcloud builds submit --config cloudbuild.yaml \
+#     --substitutions=_VITE_SUPABASE_URL="https://xxxx.supabase.co",_VITE_SUPABASE_ANON_KEY="eyJ..."
+#
+# _VITE_SUPABASE_URL / _VITE_SUPABASE_ANON_KEY are not secret (see Dockerfile)
+# — passed as substitutions only because they need to reach `docker build
+# --build-arg`, not because they need to be hidden.
+
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '--build-arg'
+      - 'VITE_SUPABASE_URL=${_VITE_SUPABASE_URL}'
+      - '--build-arg'
+      - 'VITE_SUPABASE_ANON_KEY=${_VITE_SUPABASE_ANON_KEY}'
+      - '-t'
+      - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_SERVICE}:$SHORT_SHA'
+      - '.'
+
+images:
+  - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_SERVICE}:$SHORT_SHA'
+
+substitutions:
+  _REGION: us-central1
+  _REPO: blayne
+  _SERVICE: blayne-web
+
+options:
+  logging: CLOUD_LOGGING_ONLY

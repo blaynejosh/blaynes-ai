@@ -22,6 +22,9 @@ secrets.json
 # local tooling state (contains machine-specific absolute paths)
 .claude/settings.local.json
 
+# skill content — data, not code; lives in GCS (see server/skillStorage.js)
+blayne_skills/
+
 # logs / OS noise
 *.log
 npm-debug.log*

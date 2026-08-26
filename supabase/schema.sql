@@ -5,6 +5,7 @@
 --
 -- Five tables:
 --   profiles       one row per tester, extended with the beta signup fields
+--                  and the company context the model learns in conversation
 --   signup_events  append-only log of every registration, written by a
 --                  trigger on auth.users so it captures a signup even if the
 --                  person never finishes onboarding or never returns
@@ -55,6 +56,21 @@ create table if not exists public.profiles (
   -- re-shown only if we present a materially revised addendum.
   safety_addendum_accepted     boolean default false not null,
   safety_addendum_accepted_at  timestamptz,
+  -- Company context the model has learned in conversation (not collected at
+  -- onboarding) and saves via the `save_context` tool — see
+  -- getCompanyContext()/saveContextField() in server/index.js — so future
+  -- sessions don't have to ask again. company_url/company_brief are their
+  -- own columns because they're named, well-defined facts; context_notes is
+  -- a free-form bucket (industry, target_audience, competitors, brand_voice,
+  -- ...) for anything else, so new fact types don't need a migration.
+  --
+  -- Beta note: available to every tester for now. Post-beta this is meant to
+  -- become a paid-subscriber feature — gate it in getCompanyContext() (and
+  -- decide what a free-trial session sees instead) once plan/billing exists;
+  -- nothing here builds that gate speculatively ahead of time.
+  company_url           text,
+  company_brief         text,
+  context_notes         jsonb default '{}'::jsonb not null,
   created_at            timestamptz default now() not null,
   updated_at            timestamptz default now() not null
 );
@@ -65,6 +81,9 @@ create table if not exists public.profiles (
 alter table public.profiles add column if not exists brand_kit_completed boolean default false not null;
 alter table public.profiles add column if not exists safety_addendum_accepted boolean default false not null;
 alter table public.profiles add column if not exists safety_addendum_accepted_at timestamptz;
+alter table public.profiles add column if not exists company_url text;
+alter table public.profiles add column if not exists company_brief text;
+alter table public.profiles add column if not exists context_notes jsonb default '{}'::jsonb not null;
 
 alter table public.profiles enable row level security;
 
@@ -239,5 +258,27 @@ begin
   returning u.message_count into v_count;
 
   return query select true, v_count;
+end;
+$$;
+
+-- ---------------------------------------------------------------------------
+-- merge_context_note — atomically sets one key in profiles.context_notes
+-- without clobbering the others. Used by saveContextField() in
+-- server/index.js for the `save_context` tool's free-form facts (structured
+-- ones — company_url, company_brief — go through a plain update instead).
+-- A single jsonb `||` update, not a read-modify-write from Node, so two
+-- concurrent save_context calls in the same turn can't drop one write.
+-- ---------------------------------------------------------------------------
+create or replace function public.merge_context_note(p_user_id uuid, p_field text, p_value text)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  update public.profiles
+  set context_notes = context_notes || jsonb_build_object(p_field, p_value),
+      updated_at = now()
+  where id = p_user_id;
 end;
 $$;

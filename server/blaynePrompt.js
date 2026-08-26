@@ -65,6 +65,16 @@ Escalate to a human at Blayne's Consulting when a decision carries legal, regula
 
 Regulatory, licensing, and compliance specifics vary by jurisdiction and change often. Never state them as settled fact from memory — say what you believe is true, flag that it must be verified against the current primary source, and name which regulator or agency to check.
 
+# Building context as you go
+
+A new client often starts with nothing on file — no company name, no brief, no brand materials, no site. Never let that block a first answer: give the best response you can with what you know, name the assumptions you made to get there, and weave in one or two specific, natural questions inviting the pieces that would sharpen it — a company name, a one-line description of what they do, a link to their site, a brand guide, a past deck, whatever the request in front of you actually calls for. Ask like a colleague getting oriented, not an intake form: fold a question into a real answer, not a wall of them before you'll help.
+
+Once something is on file — a company name, a stated use case, a brand kit — build on it without asking again. If a document or detail becomes clearly relevant to the request in front of you and you still don't have it, that's the moment to ask, not before.
+
+When a client tells you a durable fact about their company — a URL, a one-line brief, their industry, who they're targeting, a competitor, how they want their brand to sound — call \`save_context\` right after they say it, quietly, so the next conversation already has it instead of asking again. Only for what they actually said, never something you inferred or guessed.
+
+Whenever you ask for something, or a client shares a document or business detail, say briefly that what they share stays scoped to their account — it isn't visible to other clients and isn't used to train the models Blayne's Consulting operates or, by default, the underlying AI provider's models. Keep this to a sentence; point to the Privacy Policy if they want the full detail rather than reciting it yourself.
+
 # Format
 
 Answer in clean Markdown. Use headings and bold sparingly and only where they help a skim reader. Keep answers as short as the question allows — a direct question gets a direct answer in prose, not a report.`;
@@ -97,28 +107,86 @@ const CATEGORY_CONTEXT = {
  * Injected only on the first user turn of a session, and only when the
  * tester has no brand materials saved yet (server/index.js checks
  * profiles.brand_kit_completed before setting this). Scoped to that one
- * turn on purpose: once the tester replies — with files, or by saying to
- * proceed without — the conversation continues normally and this is not
- * repeated, so it reads as one good intake question, not a recurring gate.
+ * turn on purpose — after it, the general "Building context as you go"
+ * behavior in BASE_IDENTITY carries this without a repeated nudge.
+ *
+ * Deliberately non-blocking: answer first, ask in passing. The old version
+ * of this held the deliverable back until the client replied, which reads
+ * as an intake form, not a colleague — see the user's explicit ask for
+ * "casually, through conversation" instead of a gate.
  */
 const ASK_FOR_BRAND_MATERIALS = `
 
-# Before you address this
+# First message of this session
 
-This is the first message of a new session, and this client has not shared any brand or business materials yet. Before working on what they just asked, acknowledge their message in a sentence, then ask whether they have brand guidelines, a brand manual, a company profile, or any other business documents they can share — say briefly that it lets you match their actual brand and business rather than producing something generic. Mention they can attach files directly in this chat.
-
-Keep it to a few sentences. Do not produce the full deliverable yet — wait for their reply. If they say they have nothing to share, or ask you to proceed anyway, do your best with what you have from then on, the same as you would for any client with limited context to give.`;
+This client hasn't shared any brand or business materials yet. Go ahead and answer what they asked — don't hold the answer back for this — and work in a brief, natural mention that you can match their actual brand and business more closely if they share brand guidelines, a company profile, or similar (attachable directly in this chat). Keep it to a sentence, and note that whatever they share stays scoped to their account.`;
 
 /**
- * Builds the system prompt for one request. The stable identity comes first so
- * it stays inside the cached prefix; everything after it is per-request and
- * uncached.
+ * Summarizes what's known about this client's company — onboarding fields
+ * plus whatever the model has saved via `save_context` in past sessions
+ * (company_url, company_brief, context_notes) — so the model doesn't re-ask
+ * for it.
  */
-export function buildSystem(category, topic, { needsBrandAsk = false } = {}) {
+function describeCompanyContext(companyContext) {
+  if (!companyContext) return null;
+  const { has_company, company_name, company_size, use_case, company_url, company_brief, context_notes } =
+    companyContext;
+
+  const parts = [];
+  if (has_company === false) {
+    parts.push("This client isn't working on behalf of a company — advise them as an individual.");
+  } else if (company_name) {
+    parts.push(`Company: ${company_name}${company_size ? ` (${company_size} employees)` : ''}.`);
+  }
+  if (company_url) parts.push(`Site: ${company_url}.`);
+  if (company_brief) parts.push(`Brief: ${company_brief}`);
+  if (use_case) parts.push(`What they said at signup they'd use B.L.A.Y.N.E for: "${use_case}".`);
+  if (context_notes && Object.keys(context_notes).length) {
+    const notes = Object.entries(context_notes)
+      .map(([field, value]) => `${field.replace(/_/g, ' ')}: ${value}`)
+      .join('; ');
+    parts.push(`Also on file — ${notes}.`);
+  }
+
+  return parts.length ? parts.join(' ') : null;
+}
+
+/**
+ * Builds the system prompt for one request. The stable identity and skill
+ * playbooks come first, each as their own cache_control breakpoint, so they
+ * stay cache hits across requests; the category framing, on-file context,
+ * and brand-ask that follow are per-request and uncached.
+ */
+export function buildSystem(
+  category,
+  topic,
+  { needsBrandAsk = false, skills = [], companyContext = null } = {},
+) {
   const blocks = [
     // Cached: identical on every request, so it bills at cache-read rates.
     { type: 'text', text: BASE_IDENTITY, cache_control: { type: 'ephemeral' } },
   ];
+
+  // Cached separately from BASE_IDENTITY only so an edit to one doesn't
+  // invalidate the other's cache — the core skill set is the same on every
+  // request regardless of category, so this is a cache hit just as often as
+  // BASE_IDENTITY is.
+  if (skills.length) {
+    const skillsText = skills.map((s) => `## ${s.name}\n\n${s.content}`).join('\n\n---\n\n');
+    blocks.push({
+      type: 'text',
+      text: `\n\n# Core knowledge\n\nThe following always apply to this conversation — the Knowledge Repository router (bbip, including its 20-category routing table and the \`load_skill\` tool it should trigger), house methodology, brand system, and writing bar. Follow them alongside your base identity above. For anything a specialist category covers, call \`load_skill\` per bbip's routing table before answering rather than answering from general knowledge.\n\n${skillsText}`,
+      cache_control: { type: 'ephemeral' },
+    });
+  }
+
+  const companyText = describeCompanyContext(companyContext);
+  if (companyText) {
+    blocks.push({
+      type: 'text',
+      text: `\n\n# Already on file\n\n${companyText} Don't ask for this again — build on it. Anything else useful (industry specifics, brand materials, a company site, target audience, competitors) is still unknown; raise it naturally, per "Building context as you go" above, when it would sharpen the answer in front of you, and save it with \`save_context\` once they tell you.`,
+    });
+  }
 
   const ctx = CATEGORY_CONTEXT[category];
   if (ctx) {

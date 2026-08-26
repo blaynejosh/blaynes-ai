@@ -35,10 +35,10 @@ npm run dev:all
 | `npm run build` | Production build of the front end |
 | `npm run extract:hero` | Regenerate the SVG-derived React components |
 | `npm run extract:hero:audit` | Print what each extracted layer range covers |
-| `npm run skills:list` | Show which Blayne skills are registered |
-| `npm run skills:upload` | Upload/refresh the skill set (needs `SKILLS_DIR`) |
+| `npm run skills:list` | Show which Blayne skills are in the GCS bucket |
+| `npm run skills:upload` | Push `blayne_skills/*.md` to the GCS bucket |
 
-`GET /api/health` reports whether the API key was picked up and how many skills are registered.
+`GET /api/health` reports whether the API key was picked up and which GCS bucket skills are read from.
 
 ## Architecture
 
@@ -68,19 +68,21 @@ Geometry is reproduced faithfully: the artboards are 1440×1024, and `src/lib/st
 
 ### The Blayne skills
 
-The identity prompt sets *how* B.L.A.Y.N.E. behaves. The **skills** are what it knows: the six-phase methodology, the brand system, the writing standards, and the specialist playbooks the `bbip` router indexes. They're uploaded to the Anthropic Skills API and attached per request, so each skill's description stays in context and the full text loads only when a request calls for it.
+The identity prompt sets *how* B.L.A.Y.N.E. behaves. The **skills** are what it knows: the six-phase methodology, the brand system, the writing standards, and the specialist playbooks the `bbip` router indexes. Each skill is a Markdown file in Google Cloud Storage (`gs://blayne-skills-bbip/blayne_skills/<name>.md`), fetched by `server/skillStorage.js` and spliced straight into the system prompt (`buildSystem` in `server/blaynePrompt.js`) as its own `cache_control` breakpoint — no Anthropic-hosted skill resource involved.
 
-`server/skills.json` records the uploaded ids — commit it, it's not a secret. Re-run `npm run skills:upload` only when a `SKILL.md` actually changes; `-- --force` publishes a new version of an existing skill.
+Source files live locally in `blayne_skills/` (gitignored — skill content is data, not code). Edit a `.md` there and run `npm run skills:upload` to push it; the bucket object is overwritten immediately, no versioning. The server fetches lazily on first use per skill name and caches in memory for the life of the process, so a redeploy is needed to pick up an edit (or restart the process).
 
-**The Messages API allows 8 skills per request** (not 20 — that's Managed Agents). So `server/index.js` attaches a fixed Blayne core on every call — `bbip`, `blayne-methodology`, `blayne-brand-guidelines`, `blayne-executive-writing-standard` — plus four chosen by which Product Map layer the client is in. Change the split in `CORE_SKILLS` / `SKILLS_BY_CATEGORY`.
+`server/index.js` attaches a fixed Blayne core on every call — `bbip`, `methodology`, `business_brand_guidelines`, `writing_standards` (see `CORE_SKILLS`). The other 16 specialist skills (`ROUTABLE_SKILLS`) aren't pre-loaded: `bbip`'s own routing table (section 3, "How routing works") tells the model which category a request falls into, and the model acts on that by calling the `load_skill` tool (`SKILL_TOOL`) — the server fetches that one skill's text from GCS and feeds it back as a `tool_result`, then the model continues. A request spanning several categories calls it several times in the same turn. A skill that fails to load (never uploaded, no GCS credentials, or an unknown name) comes back as a `tool_result` error rather than failing the request.
 
-Skills execute in a code-execution container, which is why requests carry the `code_execution` tool and the `code-execution-2025-08-25` + `skills-2025-10-02` betas, and why the server handles `pause_turn` by resuming. That container adds latency and cost to every message — if you ever want the cheap path back, drop `container`/`tools` and the betas and it runs on the identity prompt alone.
+Document-production and visual-design skills in the bucket (`editor`, `proofreader`, `document-formatter`, `image-designer`, and similar) are deliberately left out of `ROUTABLE_SKILLS` — this chat surface renders Markdown, not files, so the model has nothing to do with them yet.
+
+Auth to GCS is Application Default Credentials, not an env var: `gcloud auth application-default login` locally, the runtime service account on Cloud Run/GCE when deployed. `BLAYNE_SKILLS_BUCKET` overrides the bucket name if you're not using `blayne-skills-bbip`.
 
 ## Deploying
 
 The front end builds to static files, but **the API needs a Node runtime** — a static-only host will serve the site with every chat failing. `server/index.js` already serves the built `dist/` and falls back to `index.html` for client routes (`/login`, `/features`, …) in production, so one process handles both.
 
-**Claude runs through the standard first-party Anthropic API here — not Vertex AI.** Vertex doesn't support the Skills API, code execution, or the Files API, and this app's skill set and brand-document upload both depend on those. Deploying to GCP means running this Node process on GCP compute with the same `ANTHROPIC_API_KEY` env var it already uses locally — not a separate Claude↔GCP integration.
+**Claude runs through the standard first-party Anthropic API here — not Vertex AI.** Vertex doesn't support code execution or the Files API, and brand-document upload depends on both. Deploying to GCP means running this Node process on GCP compute with the same `ANTHROPIC_API_KEY` env var it already uses locally, plus GCS access (Application Default Credentials via the runtime service account) for the skill bucket — not a separate Claude↔GCP integration.
 
 ### Google Cloud Run
 
@@ -97,6 +99,13 @@ gcloud artifacts repositories create blayne --repository-format=docker \
 # Secrets (server-side only — never baked into the client bundle)
 echo -n "sk-ant-..." | gcloud secrets create ANTHROPIC_API_KEY --data-file=-
 echo -n "eyJ..." | gcloud secrets create SUPABASE_SERVICE_ROLE_KEY --data-file=-
+
+# Skills bucket (one-time) — grant the Cloud Run runtime service account read
+# access, then push the skill Markdown from blayne_skills/
+gsutil mb -l us-central1 gs://blayne-skills-bbip
+gsutil iam ch serviceAccount:YOUR_PROJECT_NUMBER-compute@developer.gserviceaccount.com:roles/storage.objectViewer \
+  gs://blayne-skills-bbip
+npm run skills:upload
 
 # Build (Cloud Build — no local Docker needed)
 gcloud builds submit --config cloudbuild.yaml \

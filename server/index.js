@@ -23,6 +23,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import Anthropic, { toFile } from '@anthropic-ai/sdk';
 import { buildSystem } from './blaynePrompt.js';
+import { loadSkills } from './skillStorage.js';
 import { supabaseAdmin, hasSupabase } from './supabaseAdmin.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -44,77 +45,113 @@ const MAX_TOKENS = 16000;
 const MAX_TURNS = 40;
 const MAX_CHARS = 24000;
 
-/** Server tools pause at 10 internal iterations; resume a bounded number of times. */
-const MAX_RESUMES = 4;
+/**
+ * Bounds two kinds of resumed turn: the code-execution container pausing at
+ * 10 internal iterations, and the model calling `load_skill` (each call is
+ * its own round trip). A multi-category request might reasonably call
+ * `load_skill` two or three times, so this needs more headroom than a
+ * single container pause did.
+ */
+const MAX_RESUMES = 8;
 
 /**
- * The Blayne skill set, uploaded by `npm run skills:upload`.
+ * The Blayne skill set, hosted as Markdown in Google Cloud Storage — see
+ * server/skillStorage.js. Each skill's full text is fetched and spliced into
+ * the system prompt (buildSystem in blaynePrompt.js) rather than attached as
+ * an Anthropic-hosted skill resource.
  *
- * Skills are how B.L.A.Y.N.E. reaches its own methodology, brand rules, writing
- * standards and specialist playbooks: each skill's description stays in context
- * and the model pulls in the full text only when a request calls for it. They
- * execute in a code-execution container, so enabling them also enables that
- * tool and the two betas below.
+ * CORE is always on, in every system prompt — it is what makes an answer
+ * Blayne's rather than generic: the Repository router (bbip, which also
+ * holds the 20-category routing table), the six-phase method, the brand
+ * system, and the writing bar.
  *
- * Missing registry (skills never uploaded) is not fatal — the service falls
- * back to the base identity prompt alone and says so at boot.
+ * Names below must match an object's filename in the bucket exactly (no
+ * .md) — see `npm run skills:list`.
  */
-const REGISTRY = (() => {
-  try {
-    return JSON.parse(fs.readFileSync(path.join(here, 'skills.json'), 'utf8'));
-  } catch {
-    return {};
-  }
-})();
+const CORE_SKILLS = ['bbip', 'methodology', 'business_brand_guidelines', 'writing_standards'];
 
 /**
- * The Messages API allows at most 8 skills per request, so the set is chosen
- * per request rather than attaching everything.
+ * The remaining specialist skills — everything bbip's routing table names
+ * that isn't already core. Not pre-loaded: bbip identifies which of these a
+ * request needs and the model pulls it in mid-conversation via the
+ * `load_skill` tool (see SKILL_TOOL and the tool_use handling in /api/chat),
+ * so a request only ever carries the specialists it actually asked for
+ * instead of every category's guidance on every call.
  *
- * CORE is always on — it is what makes an answer Blayne's rather than generic:
- * the Repository router, the six-phase method, the brand system, and the
- * writing bar. The remaining four follow the Product Map layer the client is
- * working in, which is the best signal available about what they need.
+ * Deliberately excluded: the document-production and visual-design skills in
+ * the bucket (editor, proofreader, document-formatter, image-designer,
+ * infographic-designer, information-designer, presentation-designer,
+ * template-cloner, visual-document-designer, brand-designer) — this chat
+ * surface renders Markdown, not files, so there's nothing for the model to
+ * do with them yet. Also excluded: engagement-methodology.md,
+ * executive-writing-standard.md, and brand_guidelines.md, which are earlier
+ * drafts superseded by the CORE_SKILLS versions of the same content.
  */
-const CORE_SKILLS = [
-  'bbip',
-  'blayne-methodology',
-  'blayne-brand-guidelines',
-  'blayne-executive-writing-standard',
+const ROUTABLE_SKILLS = [
+  'business-consultant',
+  'proposal-writer',
+  'market-research',
+  'report-writer',
+  'product-manager',
+  'sales-consultant',
+  'executive-communication',
+  'solutions-architect',
+  'technical-writer',
+  'regulatory-research',
+  'investor-relations',
+  'product-marketing',
+  'investor-writing-style',
+  'ux-research',
+  'storytelling',
+  'company-setup',
 ];
 
-const SKILLS_BY_CATEGORY = {
-  features: ['business-consultant', 'proposal-writer', 'market-research', 'report-writer'],
-  'job-roles': [
-    'business-consultant',
-    'product-manager',
-    'sales-consultant',
-    'executive-communication',
-  ],
-  departments: [
-    'business-consultant',
-    'solutions-architect',
-    'technical-writer',
-    'regulatory-research',
-  ],
-  startups: [
-    'business-consultant',
-    'market-research',
-    'investor-relations',
-    'product-marketing',
-  ],
+/**
+ * Lets the model load a specialist skill's full text mid-conversation,
+ * instead of the server guessing up front which ones apply. bbip (always in
+ * context via CORE_SKILLS) carries the routing table that tells the model
+ * which category a request falls into; this tool is how it acts on that.
+ */
+const SKILL_TOOL = {
+  name: 'load_skill',
+  description:
+    "Load the full playbook for one Blayne specialist skill. Call this as soon as bbip's routing table (see the bbip skill, section 3, \"How routing works\") identifies which category a request falls into — before answering, not after — so the answer is grounded in that specialist's guidance rather than general knowledge. Call it once per skill needed; for a request spanning multiple categories, call it once for each one. Skip it only for requests bbip's core guidance already covers on its own (e.g. brand or writing-quality questions).",
+  input_schema: {
+    type: 'object',
+    properties: {
+      skill: {
+        type: 'string',
+        enum: ROUTABLE_SKILLS,
+        description: 'The skill name to load, exactly as bbip names it.',
+      },
+    },
+    required: ['skill'],
+  },
 };
 
-const MAX_SKILLS = 8;
-
-/** Resolves skill names to API references, dropping any that were never uploaded. */
-function selectSkills(category) {
-  const names = [...CORE_SKILLS, ...(SKILLS_BY_CATEGORY[category] ?? SKILLS_BY_CATEGORY.features)];
-  return names
-    .filter((n) => REGISTRY[n])
-    .slice(0, MAX_SKILLS)
-    .map((n) => ({ type: 'custom', skill_id: REGISTRY[n].skill_id, version: 'latest' }));
-}
+/**
+ * Lets the model persist a durable fact about the client's company —
+ * see "Building context as you go" in blaynePrompt.js. Backed by
+ * saveContextField() (server-side, above) and profiles.company_url /
+ * company_brief / context_notes (schema.sql).
+ */
+const SAVE_CONTEXT_TOOL = {
+  name: 'save_context',
+  description:
+    'Save one durable fact the client just stated about their company, so future sessions already have it instead of asking again — a URL, a one-line brief, their industry, who they target, a competitor, how they want their brand voice to sound, or similar. Only for something the client actually said, never something inferred or guessed. Call it right after they say it, quietly — do not announce that you are saving it.',
+  input_schema: {
+    type: 'object',
+    properties: {
+      field: {
+        type: 'string',
+        description:
+          'Short snake_case label for the fact, e.g. company_url, company_brief, industry, target_audience, competitors, brand_voice.',
+      },
+      value: { type: 'string', description: 'The fact itself, as the client stated it.' },
+    },
+    required: ['field', 'value'],
+  },
+};
 
 const client = new Anthropic(); // reads ANTHROPIC_API_KEY / an `ant auth login` profile
 
@@ -207,6 +244,55 @@ async function listBrandAssets(userId) {
   return data ?? [];
 }
 
+/**
+ * Everything the platform knows about this client's company: the facts
+ * captured at onboarding (OnboardingForm.jsx) plus whatever the model has
+ * since learned in conversation and saved via the `save_context` tool
+ * (company_url, company_brief, context_notes — see SAVE_CONTEXT_TOOL and
+ * saveContextField below). Read on every request so a session starts
+ * already knowing what previous ones learned, instead of asking again.
+ *
+ * Beta note: available to every tester for now — see the comment on these
+ * columns in supabase/schema.sql for what changes post-beta.
+ */
+async function getCompanyContext(userId) {
+  const { data, error } = await supabaseAdmin
+    .from('profiles')
+    .select('has_company, company_name, company_size, use_case, company_url, company_brief, context_notes')
+    .eq('id', userId)
+    .maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
+/** Fields with their own column; anything else merges into context_notes. */
+const STRUCTURED_CONTEXT_FIELDS = new Set(['company_url', 'company_brief']);
+
+/**
+ * Persists one fact the model learned in conversation, for
+ * `save_context` — see the tool_use handling in /api/chat. Structured
+ * fields overwrite their own column; anything else merges into
+ * context_notes atomically via merge_context_note() (see schema.sql) so
+ * concurrent saves in the same turn can't drop one another's write.
+ */
+async function saveContextField(userId, field, value) {
+  if (STRUCTURED_CONTEXT_FIELDS.has(field)) {
+    const { error } = await supabaseAdmin
+      .from('profiles')
+      .update({ [field]: value, updated_at: new Date().toISOString() })
+      .eq('id', userId);
+    if (error) throw error;
+    return;
+  }
+
+  const { error } = await supabaseAdmin.rpc('merge_context_note', {
+    p_user_id: userId,
+    p_field: field,
+    p_value: value,
+  });
+  if (error) throw error;
+}
+
 /** Client-facing shape — anthropic_file_id is an implementation detail. */
 const publicAsset = ({ anthropic_file_id, ...rest }) => rest;
 
@@ -248,7 +334,7 @@ app.get('/api/health', (req, res) => {
     model: MODEL,
     hasKey: Boolean(process.env.ANTHROPIC_API_KEY),
     hasSupabase,
-    skills: Object.keys(REGISTRY).length,
+    skillsBucket: process.env.BLAYNE_SKILLS_BUCKET ?? 'blayne-skills-bbip',
   });
 });
 
@@ -368,18 +454,23 @@ app.post('/api/chat', requireAuth, async (req, res) => {
   const blayneUsage = { used: quota.message_count, limit: DAILY_LIMIT };
 
   let brandAssets = [];
+  let companyContext = null;
   try {
-    brandAssets = await listBrandAssets(req.userId);
+    [brandAssets, companyContext] = await Promise.all([
+      listBrandAssets(req.userId),
+      getCompanyContext(req.userId),
+    ]);
   } catch (err) {
-    console.error('[blayne] brand asset lookup failed:', err.message);
-    // Non-fatal — proceed without brand context rather than fail the whole chat.
+    console.error('[blayne] context lookup failed:', err.message);
+    // Non-fatal — proceed without it rather than fail the whole chat.
   }
 
   const { category, topic } = req.body ?? {};
   // The full session history is resent on every turn, so `messages.length === 1`
   // reliably means "the first message of this session" — see server/blaynePrompt.js.
   const needsBrandAsk = messages.length === 1 && brandAssets.length === 0;
-  const system = buildSystem(category, topic, { needsBrandAsk });
+  const skills = await loadSkills(CORE_SKILLS);
+  const system = buildSystem(category, topic, { needsBrandAsk, skills, companyContext });
 
   res.writeHead(200, {
     'content-type': 'text/event-stream',
@@ -389,13 +480,16 @@ app.post('/api/chat', requireAuth, async (req, res) => {
   });
   const send = (payload) => res.write(`data: ${JSON.stringify(payload)}\n\n`);
 
-  const skills = selectSkills(category);
-  const needsContainer = skills.length > 0 || brandAssets.length > 0;
+  // The code-execution container is only for brand documents
+  // (container_upload, below) — skills are loaded via SKILL_TOOL instead.
+  const needsContainer = brandAssets.length > 0;
 
   const betas = [];
   if (needsContainer) betas.push('code-execution-2025-08-25');
-  if (skills.length) betas.push('skills-2025-10-02');
   if (brandAssets.length) betas.push(BRAND_FILES_BETA);
+
+  const tools = [SKILL_TOOL, SAVE_CONTEXT_TOOL];
+  if (needsContainer) tools.push({ type: 'code_execution_20260521', name: 'code_execution' });
 
   const request = {
     model: MODEL,
@@ -403,26 +497,18 @@ app.post('/api/chat', requireAuth, async (req, res) => {
     system,
     thinking: { type: 'adaptive' },
     output_config: { effort: 'high' },
-    ...(needsContainer
-      ? {
-          // `container` must be omitted, not `{}`, when there are no skills to
-          // attach — an empty object 400s ("should be a valid string"); the
-          // API creates a fresh container implicitly when the key is absent.
-          ...(skills.length ? { container: { skills } } : {}),
-          tools: [{ type: 'code_execution_20260521', name: 'code_execution' }],
-        }
-      : {}),
+    tools,
   };
 
   /*
    * Brand documents ride in the code-execution container (not a `document`
    * content block) because a brand manual is as likely to be a .docx or
-   * .pptx as a PDF, and the container's Python environment — already
-   * attached for skills — reads all of those; a bare `document` block only
-   * understands PDF/plain text. Attached once, on the session's very first
-   * user turn: the full history is resent every request, so it stays "in
-   * context" for the rest of the session without re-uploading, and the
-   * cache_control breakpoint keeps the repeat sends cheap.
+   * .pptx as a PDF, and the container's Python environment reads all of
+   * those; a bare `document` block only understands PDF/plain text.
+   * Attached once, on the session's very first user turn: the full history
+   * is resent every request, so it stays "in context" for the rest of the
+   * session without re-uploading, and the cache_control breakpoint keeps
+   * the repeat sends cheap.
    */
   const turns = messages.map((m, i) => {
     if (i !== 0 || brandAssets.length === 0) return { role: m.role, content: m.content };
@@ -462,6 +548,47 @@ app.post('/api/chat', requireAuth, async (req, res) => {
 
       if (final.stop_reason === 'pause_turn' && resumes < MAX_RESUMES) {
         turns.push({ role: 'assistant', content: final.content });
+        resumes += 1;
+        continue;
+      }
+
+      if (final.stop_reason === 'tool_use' && resumes < MAX_RESUMES) {
+        turns.push({ role: 'assistant', content: final.content });
+
+        const toolResults = await Promise.all(
+          final.content
+            .filter((block) => block.type === 'tool_use')
+            .map(async (block) => {
+              if (block.name === 'load_skill') {
+                const [entry] = await loadSkills([block.input?.skill]);
+                return {
+                  type: 'tool_result',
+                  tool_use_id: block.id,
+                  content: entry ? entry.content : `Skill "${block.input?.skill}" isn't available.`,
+                  ...(entry ? {} : { is_error: true }),
+                };
+              }
+
+              if (block.name === 'save_context') {
+                try {
+                  await saveContextField(req.userId, block.input?.field, block.input?.value);
+                  return { type: 'tool_result', tool_use_id: block.id, content: 'Saved.' };
+                } catch (err) {
+                  console.error('[blayne] save_context failed:', err.message);
+                  return {
+                    type: 'tool_result',
+                    tool_use_id: block.id,
+                    content: "Couldn't save that — continue without blocking on it.",
+                    is_error: true,
+                  };
+                }
+              }
+
+              return { type: 'tool_result', tool_use_id: block.id, content: 'Unknown tool.', is_error: true };
+            }),
+        );
+
+        turns.push({ role: 'user', content: toolResults });
         resumes += 1;
         continue;
       }
@@ -533,9 +660,7 @@ app.use((err, req, res, next) => {
 app.listen(PORT, () => {
   console.log(`[blayne] API on http://localhost:${PORT} (model: ${MODEL})`);
   console.log(
-    Object.keys(REGISTRY).length
-      ? `[blayne] ${Object.keys(REGISTRY).length} Blayne skills registered (max ${MAX_SKILLS} attached per request)`
-      : '[blayne] no skills registry — running on the base identity prompt only (npm run skills:upload)',
+    `[blayne] skills served from gs://${process.env.BLAYNE_SKILLS_BUCKET ?? 'blayne-skills-bbip'}/blayne_skills/ (fetched on first use per skill, cached after; missing ones fall back to the base identity prompt)`,
   );
   console.log(
     hasSupabase

@@ -10,8 +10,12 @@ import { MAP_SECTIONS } from '../data/productMap.js';
 const itemLabel = (item) => (typeof item === 'string' ? item : item.label);
 const itemMeta = (item) => (typeof item === 'string' ? null : item.meta);
 
-const BRAND_FILE_ACCEPT =
-  '.pdf,.doc,.docx,.ppt,.pptx,.png,.jpg,.jpeg,.webp,.txt,.md';
+// Matches ALLOWED_BRAND_MIME_TYPES in server/index.js — no binary Office
+// formats: Claude's inline `document` content block (no Files API on Vertex
+// AI) only reads PDF, images, and plain text, so a Word doc or deck needs
+// exporting to PDF first.
+const BRAND_FILE_ACCEPT = '.pdf,.png,.jpg,.jpeg,.webp,.txt,.md,.csv';
+const BRAND_FILE_TYPES_LABEL = 'PDF, PNG, JPG, WebP, TXT, MD, or CSV — max 8MB each';
 
 /**
  * The chat surface, from "AI chat area - *.svg": the category list on the
@@ -23,8 +27,8 @@ const BRAND_FILE_ACCEPT =
  * (360px list, 27px panel radius, 56px composer) are the desktop baseline and
  * the list collapses behind the nav's menu button on narrow viewports.
  *
- * Answers come from B.L.A.Y.N.E. via /api/chat, which holds the Anthropic key
- * server-side and streams the reply back (see server/index.js).
+ * Answers come from B.L.A.Y.N.E. via /api/chat, which calls Claude on Vertex
+ * AI server-side and streams the reply back (see server/index.js).
  */
 export default function ChatPage() {
   const { category } = useParams();
@@ -393,6 +397,9 @@ export default function ChatPage() {
                   </button>
                 )}
               </div>
+              <p className="mt-2 mb-0 text-xs text-platinum/40">
+                Attach brand materials as {BRAND_FILE_TYPES_LABEL}.
+              </p>
             </form>
           </section>
         </div>

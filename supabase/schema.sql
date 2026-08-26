@@ -11,7 +11,7 @@
 --                  person never finishes onboarding or never returns
 --   usage_daily    per-user, per-day message count — what the quota reads
 --   brand_assets   documents a tester has shared (brand manual, deck, etc.),
---                  stored in Anthropic's Files API and referenced by file_id
+--                  stored in Cloud Storage and referenced by storage_path
 --   (auth.users is Supabase's own table; we don't touch it beyond the trigger)
 
 -- ---------------------------------------------------------------------------
@@ -159,20 +159,31 @@ grant select on public.usage_daily to authenticated;
 -- ---------------------------------------------------------------------------
 -- brand_assets — documents a tester shares (brand manual, deck, logo, …).
 --
--- The file itself lives in Anthropic's Files API, not here — this row is
--- just the pointer (anthropic_file_id) plus enough metadata to list and
--- manage it from the UI. Uploaded once, reused on every request afterwards
--- (see server/index.js), matching "saved once, reused automatically."
+-- The bytes live in Cloud Storage (server/uploadStorage.js), not here — this
+-- row is just the pointer (storage_path) plus enough metadata to list and
+-- manage it from the UI. Read back and sent to Claude as an inline content
+-- block on every request (see server/index.js) — not uploaded once to an
+-- Anthropic-hosted file, since Claude on Vertex AI has no Files API.
 -- ---------------------------------------------------------------------------
 create table if not exists public.brand_assets (
-  id                bigint generated always as identity primary key,
-  user_id           uuid references auth.users (id) on delete cascade not null,
-  file_name         text not null,
-  mime_type         text not null,
-  size_bytes        bigint not null,
-  anthropic_file_id text not null,
-  created_at        timestamptz default now() not null
+  id            bigint generated always as identity primary key,
+  user_id       uuid references auth.users (id) on delete cascade not null,
+  file_name     text not null,
+  mime_type     text not null,
+  size_bytes    bigint not null,
+  storage_path  text not null,
+  created_at    timestamptz default now() not null
 );
+
+-- Migrating from the earlier Anthropic Files API-backed version of this
+-- table: any pre-existing row only has an anthropic_file_id, pointing at a
+-- file Vertex AI can't read — there's nothing to carry forward, so those
+-- rows are dropped and the column retired. The tester just re-attaches from
+-- the chat UI.
+alter table public.brand_assets add column if not exists storage_path text;
+delete from public.brand_assets where storage_path is null;
+alter table public.brand_assets drop column if exists anthropic_file_id;
+alter table public.brand_assets alter column storage_path set not null;
 
 alter table public.brand_assets enable row level security;
 
@@ -187,8 +198,8 @@ create policy "brand_assets_select_own" on public.brand_assets
 grant select on public.brand_assets to authenticated;
 -- No insert/update/delete for authenticated: uploads and deletes go through
 -- the server (service role) so every add/remove also updates
--- profiles.brand_kit_completed and cleans up the Anthropic-side file —
--- a direct client delete would orphan the file on Anthropic's side.
+-- profiles.brand_kit_completed and cleans up the Cloud Storage object —
+-- a direct client delete would orphan the object in the bucket.
 
 -- ---------------------------------------------------------------------------
 -- New signup -> profile row + signup_events row, in one transaction with the

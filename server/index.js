@@ -3,17 +3,24 @@
  *
  *   npm run server        (or `npm run dev:all` to run it beside Vite)
  *
- * This exists because two secrets must never reach the browser: the Anthropic
- * key and the Supabase service role key. The client posts a conversation
- * here with its Supabase access token; this process verifies the tester,
- * checks their daily quota, adds the base identity prompt, the Blayne skill
- * set, and any brand materials they've shared, calls Claude, and streams the
- * answer back as SSE.
+ * This exists because a secret must never reach the browser: the Supabase
+ * service role key. (Calling Claude itself needs no API key here — see the
+ * client below.) The client posts a conversation here with its Supabase
+ * access token; this process verifies the tester, checks their daily quota,
+ * adds the base identity prompt, the Blayne skill set, and any brand
+ * materials they've shared, calls Claude, and streams the answer back as SSE.
  *
- * Requires ANTHROPIC_API_KEY and the Supabase vars in the environment — see
- * .env.example. Without Supabase configured, /api/chat refuses every request
- * rather than running unauthenticated: an ungated chat endpoint is a free
- * Claude proxy billed to your key.
+ * Requires the Supabase vars in the environment — see .env.example. Without
+ * Supabase configured, /api/chat refuses every request rather than running
+ * unauthenticated: an ungated chat endpoint is a free Claude proxy billed to
+ * your GCP project.
+ *
+ * Claude runs through Google Cloud Vertex AI, not the direct Anthropic API —
+ * see the AnthropicVertex client below. That's also why brand materials ride
+ * as inline base64 content blocks instead of Anthropic's Files API +
+ * code-execution container: neither is available on Vertex (a prior attempt
+ * at this migration was reverted for exactly that reason — see commit
+ * a20493c — before the Files API/container dependency was removed here).
  */
 import express from 'express';
 import helmet from 'helmet';
@@ -21,9 +28,10 @@ import multer from 'multer';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import Anthropic, { toFile } from '@anthropic-ai/sdk';
+import { AnthropicVertex } from '@anthropic-ai/vertex-sdk';
 import { buildSystem } from './blaynePrompt.js';
 import { loadSkills } from './skillStorage.js';
+import { storeUserFile, readUserFile, deleteUserFile } from './uploadStorage.js';
 import { supabaseAdmin, hasSupabase } from './supabaseAdmin.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -46,11 +54,9 @@ const MAX_TURNS = 40;
 const MAX_CHARS = 24000;
 
 /**
- * Bounds two kinds of resumed turn: the code-execution container pausing at
- * 10 internal iterations, and the model calling `load_skill` (each call is
- * its own round trip). A multi-category request might reasonably call
- * `load_skill` two or three times, so this needs more headroom than a
- * single container pause did.
+ * Bounds a resumed turn: the model calling `load_skill` or `save_context`
+ * (each call is its own round trip). A multi-category request might
+ * reasonably call `load_skill` two or three times in one turn.
  */
 const MAX_RESUMES = 8;
 
@@ -153,7 +159,17 @@ const SAVE_CONTEXT_TOOL = {
   },
 };
 
-const client = new Anthropic(); // reads ANTHROPIC_API_KEY / an `ant auth login` profile
+/*
+ * Auth is Application Default Credentials — gcloud auth application-default
+ * login locally, or the runtime service account on Cloud Run — same as the
+ * @google-cloud/storage client in skillStorage.js/uploadStorage.js. No API
+ * key. Requires the Claude models to be enabled for this project in Vertex
+ * AI Model Garden.
+ */
+const client = new AnthropicVertex({
+  projectId: process.env.ANTHROPIC_VERTEX_PROJECT_ID,
+  region: process.env.CLOUD_ML_REGION ?? 'global',
+});
 
 /** Only role/content survives; anything else the client sent is discarded. */
 function sanitize(messages) {
@@ -207,22 +223,33 @@ async function currentUsage(userId) {
 /**
  * Brand materials — the documents a tester shares (brand manual, deck, logo)
  * so B.L.A.Y.N.E can produce work that actually matches their brand instead
- * of something generic. The files live in Anthropic's Files API; Postgres
- * only holds the pointer (see supabase/schema.sql).
+ * of something generic. The bytes live in Cloud Storage (uploadStorage.js);
+ * Postgres only holds the pointer (see supabase/schema.sql).
+ *
+ * Sent to Claude as inline `document`/`image` content blocks (built in
+ * buildAssetContentBlock, below) rather than Anthropic's Files API +
+ * code-execution container, since Vertex AI has neither. That inline path
+ * only understands PDF, images, and plain text — not the binary Office
+ * formats (.doc/.docx/.ppt/.pptx) the old container-based version could read
+ * directly — so those are no longer accepted here. A client with a Word doc
+ * or deck needs to export it to PDF first.
  */
-const BRAND_FILES_BETA = 'files-api-2025-04-14';
-const MAX_BRAND_FILE_BYTES = 20 * 1024 * 1024;
+const MAX_BRAND_FILE_BYTES = 8 * 1024 * 1024;
+/**
+ * Combined cap across everything a tester has on file. Unlike the old
+ * Files-API version, these bytes are re-sent (base64-encoded, ~1.37x larger)
+ * on every /api/chat turn — Claude's total request-size limit is 32MB, and
+ * the system prompt/skills/conversation need headroom in that same request.
+ */
+const MAX_TOTAL_BRAND_BYTES = 20 * 1024 * 1024;
 const ALLOWED_BRAND_MIME_TYPES = new Set([
   'application/pdf',
-  'application/msword',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  'application/vnd.ms-powerpoint',
-  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
   'image/png',
   'image/jpeg',
   'image/webp',
   'text/plain',
   'text/markdown',
+  'text/csv',
 ]);
 
 const brandUpload = multer({
@@ -230,18 +257,47 @@ const brandUpload = multer({
   limits: { fileSize: MAX_BRAND_FILE_BYTES, files: 5 },
   fileFilter: (req, file, cb) => {
     if (ALLOWED_BRAND_MIME_TYPES.has(file.mimetype)) cb(null, true);
-    else cb(new Error(`"${file.originalname}" isn't a supported file type.`));
+    else cb(new Error(`"${file.originalname}" isn't a supported file type — PDF, PNG/JPEG/WebP, or plain text/Markdown/CSV.`));
   },
 });
 
 async function listBrandAssets(userId) {
   const { data, error } = await supabaseAdmin
     .from('brand_assets')
-    .select('id, file_name, mime_type, size_bytes, anthropic_file_id, created_at')
+    .select('id, file_name, mime_type, size_bytes, storage_path, created_at')
     .eq('user_id', userId)
     .order('created_at', { ascending: true });
   if (error) throw error;
   return data ?? [];
+}
+
+/**
+ * Converts one stored brand asset into the content block Claude actually
+ * reads it as. Inline document/image blocks only understand PDF and images
+ * (see ALLOWED_BRAND_MIME_TYPES) — anything else on file is plain text, so
+ * it's decoded and inlined as a `text` block instead of a `document` block:
+ * Claude's `document` source for plain text needs the Files API (see
+ * pdf-support docs), which isn't available on Vertex AI.
+ */
+async function buildAssetContentBlock(asset) {
+  const buffer = await readUserFile(asset.storage_path);
+
+  if (asset.mime_type === 'application/pdf') {
+    return {
+      type: 'document',
+      source: { type: 'base64', media_type: asset.mime_type, data: buffer.toString('base64') },
+    };
+  }
+  if (asset.mime_type.startsWith('image/')) {
+    return {
+      type: 'image',
+      source: { type: 'base64', media_type: asset.mime_type, data: buffer.toString('base64') },
+    };
+  }
+  return {
+    type: 'text',
+    text: `--- Shared file: ${asset.file_name} ---\n${buffer.toString('utf-8')}\n--- End of ${asset.file_name} ---`,
+  };
 }
 
 /**
@@ -293,8 +349,8 @@ async function saveContextField(userId, field, value) {
   if (error) throw error;
 }
 
-/** Client-facing shape — anthropic_file_id is an implementation detail. */
-const publicAsset = ({ anthropic_file_id, ...rest }) => rest;
+/** Client-facing shape — storage_path is an implementation detail. */
+const publicAsset = ({ storage_path, ...rest }) => rest;
 
 const app = express();
 
@@ -332,9 +388,10 @@ app.get('/api/health', (req, res) => {
   res.json({
     ok: true,
     model: MODEL,
-    hasKey: Boolean(process.env.ANTHROPIC_API_KEY),
+    hasVertexProject: Boolean(process.env.ANTHROPIC_VERTEX_PROJECT_ID),
     hasSupabase,
     skillsBucket: process.env.BLAYNE_SKILLS_BUCKET ?? 'blayne-skills-bbip',
+    uploadsBucket: process.env.BLAYNE_UPLOADS_BUCKET ?? 'blayne-user-uploads',
   });
 });
 
@@ -355,13 +412,19 @@ app.post('/api/brand-assets', requireAuth, brandUpload.array('files', 5), async 
   const files = req.files ?? [];
   if (!files.length) return res.status(400).json({ error: 'No files provided.' });
 
+  const existing = await listBrandAssets(req.userId).catch(() => []);
+  const existingBytes = existing.reduce((sum, a) => sum + a.size_bytes, 0);
+  const incomingBytes = files.reduce((sum, f) => sum + f.size, 0);
+  if (existingBytes + incomingBytes > MAX_TOTAL_BRAND_BYTES) {
+    return res.status(400).json({
+      error: `That would put you over the ${MAX_TOTAL_BRAND_BYTES / (1024 * 1024)}MB total you can share with B.L.A.Y.N.E. Remove something first, or share less.`,
+    });
+  }
+
   const created = [];
   try {
     for (const file of files) {
-      const uploaded = await client.beta.files.upload({
-        file: await toFile(file.buffer, file.originalname, { type: file.mimetype }),
-        betas: [BRAND_FILES_BETA],
-      });
+      const storagePath = await storeUserFile(req.userId, file.buffer, file.originalname);
 
       const { data, error } = await supabaseAdmin
         .from('brand_assets')
@@ -370,7 +433,7 @@ app.post('/api/brand-assets', requireAuth, brandUpload.array('files', 5), async 
           file_name: file.originalname,
           mime_type: file.mimetype,
           size_bytes: file.size,
-          anthropic_file_id: uploaded.id,
+          storage_path: storagePath,
         })
         .select('id, file_name, mime_type, size_bytes, created_at')
         .single();
@@ -397,7 +460,7 @@ app.post('/api/brand-assets', requireAuth, brandUpload.array('files', 5), async 
 app.delete('/api/brand-assets/:id', requireAuth, async (req, res) => {
   const { data: asset, error: findError } = await supabaseAdmin
     .from('brand_assets')
-    .select('id, anthropic_file_id')
+    .select('id, storage_path')
     .eq('id', req.params.id)
     .eq('user_id', req.userId) // service role bypasses RLS — this check is the real guard
     .maybeSingle();
@@ -408,10 +471,10 @@ app.delete('/api/brand-assets/:id', requireAuth, async (req, res) => {
   if (!asset) return res.status(404).json({ error: 'File not found.' });
 
   try {
-    await client.beta.files.delete(asset.anthropic_file_id, { betas: [BRAND_FILES_BETA] });
+    await deleteUserFile(asset.storage_path);
   } catch (err) {
-    // Already gone on Anthropic's side shouldn't block removing our own record of it.
-    if (err?.status !== 404) console.error('[blayne] Anthropic file delete failed:', err.message);
+    // Already gone in Cloud Storage shouldn't block removing our own record of it.
+    console.error('[blayne] Cloud Storage delete failed:', err.message);
   }
 
   await supabaseAdmin.from('brand_assets').delete().eq('id', asset.id);
@@ -480,16 +543,7 @@ app.post('/api/chat', requireAuth, async (req, res) => {
   });
   const send = (payload) => res.write(`data: ${JSON.stringify(payload)}\n\n`);
 
-  // The code-execution container is only for brand documents
-  // (container_upload, below) — skills are loaded via SKILL_TOOL instead.
-  const needsContainer = brandAssets.length > 0;
-
-  const betas = [];
-  if (needsContainer) betas.push('code-execution-2025-08-25');
-  if (brandAssets.length) betas.push(BRAND_FILES_BETA);
-
   const tools = [SKILL_TOOL, SAVE_CONTEXT_TOOL];
-  if (needsContainer) tools.push({ type: 'code_execution_20260521', name: 'code_execution' });
 
   const request = {
     model: MODEL,
@@ -501,41 +555,42 @@ app.post('/api/chat', requireAuth, async (req, res) => {
   };
 
   /*
-   * Brand documents ride in the code-execution container (not a `document`
-   * content block) because a brand manual is as likely to be a .docx or
-   * .pptx as a PDF, and the container's Python environment reads all of
-   * those; a bare `document` block only understands PDF/plain text.
-   * Attached once, on the session's very first user turn: the full history
-   * is resent every request, so it stays "in context" for the rest of the
-   * session without re-uploading, and the cache_control breakpoint keeps
-   * the repeat sends cheap.
+   * Brand documents ride as inline content blocks (built by
+   * buildAssetContentBlock, above) on the session's very first user turn:
+   * the full history is resent every request, so they stay "in context" for
+   * the rest of the session without re-attaching, and the cache_control
+   * breakpoint on the last one keeps the repeat sends cheap (Claude reads
+   * the identical bytes from its prompt cache instead of re-processing them
+   * every turn, as long as nothing earlier in the prefix changed).
    */
+  let assetBlocks = [];
+  if (brandAssets.length) {
+    const built = await Promise.all(
+      brandAssets.map(async (asset) => {
+        try {
+          return await buildAssetContentBlock(asset);
+        } catch (err) {
+          console.error(`[blayne] could not read shared file "${asset.file_name}":`, err.message);
+          return null;
+        }
+      }),
+    );
+    assetBlocks = built.filter(Boolean);
+    if (assetBlocks.length) {
+      assetBlocks[assetBlocks.length - 1].cache_control = { type: 'ephemeral', ttl: '1h' };
+    }
+  }
+
   const turns = messages.map((m, i) => {
-    if (i !== 0 || brandAssets.length === 0) return { role: m.role, content: m.content };
-    return {
-      role: m.role,
-      content: [
-        ...brandAssets.map((asset, idx) => ({
-          type: 'container_upload',
-          file_id: asset.anthropic_file_id,
-          ...(idx === brandAssets.length - 1 ? { cache_control: { type: 'ephemeral' } } : {}),
-        })),
-        { type: 'text', text: m.content },
-      ],
-    };
+    if (i !== 0 || assetBlocks.length === 0) return { role: m.role, content: m.content };
+    return { role: m.role, content: [...assetBlocks, { type: 'text', text: m.content }] };
   });
 
-  let containerId;
   let resumes = 0;
 
   try {
     while (true) {
-      const stream = client.beta.messages.stream({
-        ...request,
-        ...(containerId ? { container: containerId } : {}),
-        messages: turns,
-        betas: betas.length ? betas : undefined,
-      });
+      const stream = client.messages.stream({ ...request, messages: turns });
 
       for await (const event of stream) {
         if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
@@ -544,13 +599,6 @@ app.post('/api/chat', requireAuth, async (req, res) => {
       }
 
       const final = await stream.finalMessage();
-      containerId = final.container?.id ?? containerId;
-
-      if (final.stop_reason === 'pause_turn' && resumes < MAX_RESUMES) {
-        turns.push({ role: 'assistant', content: final.content });
-        resumes += 1;
-        continue;
-      }
 
       if (final.stop_reason === 'tool_use' && resumes < MAX_RESUMES) {
         turns.push({ role: 'assistant', content: final.content });
@@ -613,15 +661,20 @@ app.post('/api/chat', requireAuth, async (req, res) => {
   } catch (err) {
     const status = err?.status;
     const raw = err?.message ?? '';
-    // No credentials at all throws without a status, so match on the message.
-    const noCredentials = status === 401 || /resolve authentication method/i.test(raw);
+    // Missing GCP credentials/project throw without an HTTP status, so match
+    // on the message — same idea as the old ANTHROPIC_API_KEY check, but for
+    // Application Default Credentials and the Vertex project id.
+    const noCredentials =
+      status === 401 ||
+      status === 403 ||
+      /could not load the default credentials|application default credentials|project.*not.*found|PROJECT_ID/i.test(raw);
 
     const message = noCredentials
-      ? 'B.L.A.Y.N.E is not connected yet — the server has no Anthropic API key. Set ANTHROPIC_API_KEY (see .env.example) and restart it.'
+      ? "B.L.A.Y.N.E is not connected yet — the server can't reach Claude on Vertex AI. Set ANTHROPIC_VERTEX_PROJECT_ID (and run `gcloud auth application-default login` in dev) and restart it."
       : status === 429
-        ? 'Rate limited by the Anthropic API. Try again shortly.'
+        ? 'Rate limited by Vertex AI. Try again shortly.'
         : status >= 500
-          ? 'The Anthropic API is unavailable right now. Try again shortly.'
+          ? 'Claude on Vertex AI is unavailable right now. Try again shortly.'
           : (raw || 'Unexpected error.');
 
     console.error('[blayne] chat failed:', status ?? '', raw || err);
@@ -667,7 +720,7 @@ app.listen(PORT, () => {
       ? `[blayne] Supabase auth active — ${DAILY_LIMIT} messages/day/tester`
       : '[blayne] no Supabase config — /api/chat and /api/usage will return 503 (see .env.example)',
   );
-  if (!process.env.ANTHROPIC_API_KEY) {
-    console.warn('[blayne] ANTHROPIC_API_KEY is not set — /api/chat will fail once auth passes.');
+  if (!process.env.ANTHROPIC_VERTEX_PROJECT_ID) {
+    console.warn('[blayne] ANTHROPIC_VERTEX_PROJECT_ID is not set — /api/chat will fail once auth passes.');
   }
 });

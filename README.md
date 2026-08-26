@@ -21,7 +21,8 @@ The hero's four **Explore** pills cross from the marketing page into the chat pr
 
 ```bash
 npm install
-cp .env.example .env    # then add your Anthropic API key
+cp .env.example .env    # then point it at your GCP project (see below)
+gcloud auth application-default login
 npm run dev:all
 ```
 
@@ -38,7 +39,7 @@ npm run dev:all
 | `npm run skills:list` | Show which Blayne skills are in the GCS bucket |
 | `npm run skills:upload` | Push `blayne_skills/*.md` to the GCS bucket |
 
-`GET /api/health` reports whether the API key was picked up and which GCS bucket skills are read from.
+`GET /api/health` reports whether a Vertex project id was picked up and which GCS buckets skills/uploads are read from.
 
 ## Architecture
 
@@ -47,7 +48,7 @@ src/            React front end (no API key ever reaches here)
   components/   Hero, Product Map sections, chat surface
   data/         Product Map content + hero geometry
   lib/          Stage/fan geometry helpers, SSE chat client
-server/         Node API — holds the Anthropic key, streams answers
+server/         Node API — calls Claude on Vertex AI, streams answers
 design/         Source SVG exports the components are generated from
 scripts/        SVG → React extraction
 ```
@@ -62,7 +63,7 @@ Geometry is reproduced faithfully: the artboards are 1440×1024, and `src/lib/st
 
 ### The API
 
-`server/index.js` exists so the Anthropic key stays server-side. It adds B.L.A.Y.N.E's base identity prompt, calls Claude, and streams the answer back as Server-Sent Events.
+`server/index.js` exists so nothing Claude-related reaches the browser. It adds B.L.A.Y.N.E's base identity prompt, calls Claude on Google Cloud Vertex AI (`AnthropicVertex`, Application Default Credentials — no API key), and streams the answer back as Server-Sent Events.
 
 `server/blaynePrompt.js` holds that identity prompt, compiled from **Personality & Consulting Methodology v1.0** (Document 6). That document specifies it as the top prompt layer that nothing downstream may override — treat edits to it as changes to the product's behaviour, not copy tweaks. It's also the cached prefix, so editing it invalidates the prompt cache for every conversation.
 
@@ -78,11 +79,17 @@ Document-production and visual-design skills in the bucket (`editor`, `proofread
 
 Auth to GCS is Application Default Credentials, not an env var: `gcloud auth application-default login` locally, the runtime service account on Cloud Run/GCE when deployed. `BLAYNE_SKILLS_BUCKET` overrides the bucket name if you're not using `blayne-skills-bbip`.
 
+### Brand documents
+
+A tester can attach brand materials (manual, deck, logo) from the chat surface — `POST/GET/DELETE /api/brand-assets` in `server/index.js`. The bytes live in Cloud Storage (`server/uploadStorage.js`, bucket `BLAYNE_UPLOADS_BUCKET`), not Anthropic's Files API: Vertex AI doesn't support the Files API or the code-execution container (see below), so there's nowhere to upload a file to *once* and just reference afterwards.
+
+Instead, each file is read back from GCS and sent as an inline content block on the first turn of a session — `document` (base64) for PDFs, `image` for PNG/JPEG/WebP, and the raw decoded text for plain text/Markdown/CSV. That's why binary Office formats (`.doc`/`.docx`/`.ppt`/`.pptx`) aren't accepted: Claude's inline `document` block only understands PDF and text, so a Word doc or deck needs exporting to PDF first. A `cache_control` breakpoint on the last block keeps the repeat sends (the full history, and everything attached to it, goes out again on every turn) cheap after the first.
+
 ## Deploying
 
 The front end builds to static files, but **the API needs a Node runtime** — a static-only host will serve the site with every chat failing. `server/index.js` already serves the built `dist/` and falls back to `index.html` for client routes (`/login`, `/features`, …) in production, so one process handles both.
 
-**Claude runs through the standard first-party Anthropic API here — not Vertex AI.** Vertex doesn't support code execution or the Files API, and brand-document upload depends on both. Deploying to GCP means running this Node process on GCP compute with the same `ANTHROPIC_API_KEY` env var it already uses locally, plus GCS access (Application Default Credentials via the runtime service account) for the skill bucket — not a separate Claude↔GCP integration.
+**Claude runs through Google Cloud Vertex AI**, via the `AnthropicVertex` client (`@anthropic-ai/vertex-sdk`) — no Anthropic API key anywhere. Auth is the same Application Default Credentials the skill/upload buckets already use: `gcloud auth application-default login` locally, the runtime service account on Cloud Run/GCE when deployed — it needs the `roles/aiplatform.user` IAM role, and the Claude models used (`BLAYNE_MODEL`, default `claude-opus-5`) need to be enabled for the project in Vertex AI Model Garden. Set `ANTHROPIC_VERTEX_PROJECT_ID` (and `CLOUD_ML_REGION` if you're not using the recommended `global`) as plain env vars — neither is secret, they're just config.
 
 ### Google Cloud Run
 
@@ -92,20 +99,30 @@ The front end builds to static files, but **the API needs a Node runtime** — a
 # One-time setup
 gcloud config set project YOUR_PROJECT_ID
 gcloud services enable run.googleapis.com cloudbuild.googleapis.com \
-  artifactregistry.googleapis.com secretmanager.googleapis.com
+  artifactregistry.googleapis.com secretmanager.googleapis.com aiplatform.googleapis.com
 gcloud artifacts repositories create blayne --repository-format=docker \
   --location=us-central1
 
+# Vertex AI — let the Cloud Run runtime service account call Claude
+gcloud projects add-iam-policy-binding YOUR_PROJECT_ID \
+  --member=serviceAccount:YOUR_PROJECT_NUMBER-compute@developer.gserviceaccount.com \
+  --role=roles/aiplatform.user
+# Then, in the Cloud Console: Vertex AI -> Model Garden -> Claude -> enable
+# the models BLAYNE_MODEL will request (default claude-opus-5).
+
 # Secrets (server-side only — never baked into the client bundle)
-echo -n "sk-ant-..." | gcloud secrets create ANTHROPIC_API_KEY --data-file=-
 echo -n "eyJ..." | gcloud secrets create SUPABASE_SERVICE_ROLE_KEY --data-file=-
 
-# Skills bucket (one-time) — grant the Cloud Run runtime service account read
-# access, then push the skill Markdown from blayne_skills/
+# Skills + uploads buckets (one-time) — grant the Cloud Run runtime service
+# account access, then push the skill Markdown from blayne_skills/
 gsutil mb -l us-central1 gs://blayne-skills-bbip
 gsutil iam ch serviceAccount:YOUR_PROJECT_NUMBER-compute@developer.gserviceaccount.com:roles/storage.objectViewer \
   gs://blayne-skills-bbip
 npm run skills:upload
+
+gsutil mb -l us-central1 gs://blayne-user-uploads
+gsutil iam ch serviceAccount:YOUR_PROJECT_NUMBER-compute@developer.gserviceaccount.com:roles/storage.objectAdmin \
+  gs://blayne-user-uploads
 
 # Build (Cloud Build — no local Docker needed)
 gcloud builds submit --config cloudbuild.yaml \
@@ -117,8 +134,8 @@ gcloud run deploy blayne-web \
   --region=us-central1 \
   --allow-unauthenticated \
   --timeout=600 \
-  --set-secrets=ANTHROPIC_API_KEY=ANTHROPIC_API_KEY:latest,SUPABASE_SERVICE_ROLE_KEY=SUPABASE_SERVICE_ROLE_KEY:latest \
-  --set-env-vars=VITE_SUPABASE_URL=https://your-project.supabase.co,BLAYNE_DAILY_LIMIT=25
+  --set-secrets=SUPABASE_SERVICE_ROLE_KEY=SUPABASE_SERVICE_ROLE_KEY:latest \
+  --set-env-vars=VITE_SUPABASE_URL=https://your-project.supabase.co,BLAYNE_DAILY_LIMIT=25,ANTHROPIC_VERTEX_PROJECT_ID=YOUR_PROJECT_ID,CLOUD_ML_REGION=global
 ```
 
 `--timeout=600` matters — chat answers stream over a long-lived connection, and Cloud Run's default 300s timeout is tight for a long consulting answer with skills and adaptive thinking. `--set-secrets` maps a Secret Manager secret into the container at runtime, access-controlled separately from the Cloud Run service config; a plain `--set-env-vars` value is visible to anyone with viewer IAM on the project.

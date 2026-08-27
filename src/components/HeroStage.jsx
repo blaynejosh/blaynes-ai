@@ -5,7 +5,7 @@ import BlayneMark from './BlayneMark.jsx';
 import NodePill from './NodePill.jsx';
 import AccountMenu from './auth/AccountMenu.jsx';
 import SearchBox from './SearchBox.jsx';
-import { box, ink } from '../lib/stage.js';
+import { box, ink, u } from '../lib/stage.js';
 import { HERO_NODES } from '../data/heroNodes.js';
 
 /*
@@ -44,10 +44,12 @@ export default function HeroStage() {
 
       <SearchBox variant="stage" />
 
-      {/* Same header row as the logo and Search — sits inside the design's
-          established right margin (the pill's right edge already meets it),
-          so the avatar goes just left of Search rather than past it. */}
-      <div style={{ ...box(1046, 45), position: 'absolute' }}>
+      {/* Same header row as the logo and Search. Right-anchored (like
+          SearchBox's own expansion) at the avatar's design-export right edge
+          (1046 + 36 = 1082) so it grows leftward instead of overlapping
+          Search — the signed-out Log in / Get started pair is wider than
+          the signed-in avatar this slot was drawn for. */}
+      <div style={{ position: 'absolute', top: u(45), right: u(1440 - 1082) }}>
         <AccountMenu />
       </div>
 

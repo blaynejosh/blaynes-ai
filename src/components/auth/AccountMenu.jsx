@@ -1,14 +1,20 @@
 import { useState, useRef, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext.jsx';
 
 /**
- * Sign-out affordance. A standalone floating control rather than something
+ * Account affordance. A standalone floating control rather than something
  * built into Hero/ChatNav's own markup — both of those are laid out from
  * exact design-export coordinates (see lib/stage.js), and this has no
  * equivalent in either export to anchor to.
+ *
+ * Signed out (only reachable from the public home page — ChatNav/HowWeWork
+ * sit behind ProtectedRoute, so they only ever render the signed-in state):
+ * Log in / Get started, both pointing at the same unified /login page.
+ * Signed in: the avatar + sign-out menu.
  */
 export default function AccountMenu({ className = '' }) {
-  const { profile, user, signOut } = useAuth();
+  const { session, profile, user, signOut } = useAuth();
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
 
@@ -20,6 +26,25 @@ export default function AccountMenu({ className = '' }) {
     document.addEventListener('mousedown', onClick);
     return () => document.removeEventListener('mousedown', onClick);
   }, [open]);
+
+  if (!session) {
+    return (
+      <div className={`flex items-center gap-1.5 sm:gap-2 ${className}`}>
+        <Link
+          to="/login"
+          className="pressable-text rounded-full px-2.5 py-1.5 text-xs text-platinum/85 no-underline transition-colors hover:text-platinum sm:px-3 sm:py-2 sm:text-sm"
+        >
+          Log in
+        </Link>
+        <Link
+          to="/login"
+          className="pressable material-chip rounded-full bg-jordy px-3 py-1.5 text-xs font-medium text-delft no-underline transition-colors hover:bg-jordy/85 sm:px-4 sm:py-2 sm:text-sm"
+        >
+          Get started
+        </Link>
+      </div>
+    );
+  }
 
   const name = profile?.full_name || user?.email || '';
   const initial = name.trim().charAt(0).toUpperCase() || '?';

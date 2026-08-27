@@ -1,9 +1,9 @@
-import { Navigate, useLocation } from 'react-router-dom';
+import { Navigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext.jsx';
 import BlayneMark from '../BlayneMark.jsx';
 
 /**
- * Gates the app proper: no session -> /login; session but the onboarding
+ * Gates the chat product: no session -> /login; session but the onboarding
  * form hasn't been completed -> /onboarding; onboarded but the Advanced AI
  * Model Safety Addendum hasn't been accepted -> /safety-addendum.
  * `requireOnboarded` is false only on /onboarding itself, and
@@ -17,7 +17,6 @@ export default function ProtectedRoute({
   requireSafetyAddendum = true,
 }) {
   const { session, profile, loading } = useAuth();
-  const location = useLocation();
 
   if (loading) {
     return (
@@ -28,7 +27,7 @@ export default function ProtectedRoute({
   }
 
   if (!session) {
-    return <Navigate to="/login" state={{ from: location.pathname }} replace />;
+    return <Navigate to="/login" replace />;
   }
 
   if (requireOnboarded && profile && !profile.onboarding_completed) {

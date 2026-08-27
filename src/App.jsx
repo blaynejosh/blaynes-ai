@@ -12,10 +12,11 @@ import TermsOfUsePage from './components/legal/TermsOfUsePage.jsx';
 import PrivacyPolicyPage from './components/legal/PrivacyPolicyPage.jsx';
 
 /**
- * Two surfaces: the marketing home page, and the chat product at one route
- * per Product Map layer. The hero's Explore pills cross from one to the
- * other. Both sit behind ProtectedRoute — signup is open (anyone can reach
- * /login), but the app itself requires a signed-in, onboarded account.
+ * Two surfaces: the public marketing home page, and the chat product at one
+ * route per Product Map layer. The hero's Explore pills cross from one to
+ * the other. Only the chat product sits behind ProtectedRoute — the home
+ * page is reachable by anyone, signed in or not, and every auth step
+ * (login, onboarding, safety addendum) lands back on it when done.
  */
 export default function App() {
   return (
@@ -42,14 +43,7 @@ export default function App() {
               </ProtectedRoute>
             }
           />
-          <Route
-            path="/"
-            element={
-              <ProtectedRoute>
-                <HomePage />
-              </ProtectedRoute>
-            }
-          />
+          <Route path="/" element={<HomePage />} />
           <Route
             path="/how-we-work"
             element={

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Navigate, useLocation } from 'react-router-dom';
+import { Navigate } from 'react-router-dom';
 import BlayneMark from '../BlayneMark.jsx';
 import { useAuth } from '../../context/AuthContext.jsx';
 
@@ -10,16 +10,15 @@ import { useAuth } from '../../context/AuthContext.jsx';
  */
 export default function LoginPage() {
   const { session, signInWithGoogle, signInWithEmail } = useAuth();
-  const location = useLocation();
   const [email, setEmail] = useState('');
   const [sent, setSent] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
 
-  if (session) {
-    const to = location.state?.from ?? '/';
-    return <Navigate to={to} replace />;
-  }
+  // Always back to the home page, never the feature page that redirected
+  // here — /, /onboarding and /safety-addendum each forward on to the next
+  // required step, so this converges on / once every gate is satisfied.
+  if (session) return <Navigate to="/" replace />;
 
   const withGoogle = async () => {
     setError(null);

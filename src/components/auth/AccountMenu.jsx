@@ -10,7 +10,7 @@ import { useAuth } from '../../context/AuthContext.jsx';
  *
  * Signed out (only reachable from the public home page — ChatNav/HowWeWork
  * sit behind ProtectedRoute, so they only ever render the signed-in state):
- * Log in / Get started, both pointing at the same unified /login page.
+ * Log in / Start a session, both pointing at the same unified /login page.
  * Signed in: the avatar + sign-out menu.
  */
 export default function AccountMenu({ className = '' }) {
@@ -40,7 +40,7 @@ export default function AccountMenu({ className = '' }) {
           to="/login"
           className="pressable material-chip rounded-full bg-jordy px-3 py-1.5 text-xs font-medium text-delft no-underline transition-colors hover:bg-jordy/85 sm:px-4 sm:py-2 sm:text-sm"
         >
-          Get started
+          Start a session
         </Link>
       </div>
     );

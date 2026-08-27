@@ -8,6 +8,15 @@
       content="B.L.A.Y.N.E AI — Business Leading Agent Yielding Next-Gen Enterprise Strategies. Your consulting team, on demand."
     />
     <title>B.L.A.Y.N.E AI — Your consulting team, on demand</title>
+    <script>
+      // Light is the default (see index.css); this only has to act early
+      // for a returning visitor who previously chose dark, so there's no
+      // flash of light before ThemeProvider mounts and takes over.
+      try {
+        var t = localStorage.getItem('blayne-theme');
+        if (t === 'dark') document.documentElement.dataset.theme = 'dark';
+      } catch (e) {}
+    </script>
   </head>
   <body>
     <div id="root"></div>

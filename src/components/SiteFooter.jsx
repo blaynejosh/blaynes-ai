@@ -3,7 +3,7 @@ import BlayneMark from './BlayneMark.jsx';
 import { MAP_SECTIONS } from '../data/productMap.js';
 
 /* Contact details as published on Blayne's Consulting document footers. */
-const SITE = 'www.blaynesconsulting.com';
+const SITE = 'blaynes.consulting';
 const EMAIL = 'team@blaynes.consulting';
 
 const COMPANY = [

@@ -1,6 +1,7 @@
 import { NavLink, Link } from 'react-router-dom';
 import BlayneMark from './BlayneMark.jsx';
 import AccountMenu from './auth/AccountMenu.jsx';
+import ThemeToggle from './ThemeToggle.jsx';
 import { MAP_SECTIONS } from '../data/productMap.js';
 
 /**
@@ -72,7 +73,8 @@ export default function ChatNav({ onToggleSidebar, sidebarOpen }) {
           </ul>
         </nav>
 
-        <AccountMenu className="ml-2 shrink-0" />
+        <ThemeToggle className="ml-2 shrink-0" />
+        <AccountMenu className="shrink-0" />
       </div>
 
       <span

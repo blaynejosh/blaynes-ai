@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import ChatBackdrop from './ChatBackdrop.jsx';
 import BlayneMark from './BlayneMark.jsx';
 import AccountMenu from './auth/AccountMenu.jsx';
+import ThemeToggle from './ThemeToggle.jsx';
 import SiteFooter from './SiteFooter.jsx';
 import { MAP_SECTIONS } from '../data/productMap.js';
 import { STEPS } from '../data/howWeWork.js';
@@ -41,7 +42,10 @@ export default function HowWeWork() {
             <BlayneMark className="h-9 w-9" />
             <span className="text-[15px] tracking-[0.02em] text-platinum">B.L.A.Y.N.E</span>
           </Link>
-          <AccountMenu />
+          <div className="flex items-center gap-2">
+            <ThemeToggle />
+            <AccountMenu />
+          </div>
         </div>
       </header>
 

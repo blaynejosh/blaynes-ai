@@ -9,7 +9,7 @@ export default function ProcessSection() {
         <p className="m-0 text-xs tracking-[0.22em] text-jordy/80 uppercase">How it works</p>
         <h2
           id="process-heading"
-          className="mt-6 mb-0 max-w-2xl text-[clamp(1.75rem,4vw,3rem)] leading-[1.1] font-normal tracking-[-0.02em] text-platinum"
+          className="display-h1 mt-6 mb-0 max-w-2xl text-[clamp(1.75rem,4vw,3rem)] leading-[1.1] font-normal tracking-[-0.02em] text-platinum"
         >
           From sign-in to an answer you can act on.
         </h2>

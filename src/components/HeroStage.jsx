@@ -4,6 +4,7 @@ import HeroBackdrop from './HeroBackdrop.jsx';
 import BlayneMark from './BlayneMark.jsx';
 import NodePill from './NodePill.jsx';
 import AccountMenu from './auth/AccountMenu.jsx';
+import ThemeToggle from './ThemeToggle.jsx';
 import SearchBox from './SearchBox.jsx';
 import { box, ink, u } from '../lib/stage.js';
 import { HERO_NODES, PILL } from '../data/heroNodes.js';
@@ -75,7 +76,11 @@ export default function HeroStage() {
           (1046 + 36 = 1082) so it grows leftward instead of overlapping
           Search — the signed-out Log in / Get started pair is wider than
           the signed-in avatar this slot was drawn for. */}
-      <div style={{ position: 'absolute', top: u(45), right: u(1440 - 1082) }}>
+      <div
+        style={{ position: 'absolute', top: u(45), right: u(1440 - 1082) }}
+        className="flex items-center gap-2"
+      >
+        <ThemeToggle />
         <AccountMenu />
       </div>
 

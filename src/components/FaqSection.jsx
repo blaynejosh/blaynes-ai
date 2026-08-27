@@ -28,7 +28,7 @@ export default function FaqSection() {
         <p className="m-0 text-xs tracking-[0.22em] text-jordy/80 uppercase">FAQ</p>
         <h2
           id="faq-heading"
-          className="mt-6 mb-0 text-[clamp(1.75rem,4vw,3rem)] leading-[1.1] font-normal tracking-[-0.02em] text-platinum"
+          className="display-h1 mt-6 mb-0 text-[clamp(1.75rem,4vw,3rem)] leading-[1.1] font-normal tracking-[-0.02em] text-platinum"
         >
           Questions worth answering upfront.
         </h2>

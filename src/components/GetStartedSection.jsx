@@ -8,7 +8,7 @@ export default function GetStartedSection() {
         <p className="m-0 text-xs tracking-[0.22em] text-jordy/80 uppercase">Get started</p>
         <h2
           id="start-heading"
-          className="mt-6 mb-0 text-[clamp(1.75rem,4vw,3rem)] leading-[1.1] font-normal tracking-[-0.02em] text-platinum"
+          className="display-h1 mt-6 mb-0 text-[clamp(1.75rem,4vw,3rem)] leading-[1.1] font-normal tracking-[-0.02em] text-platinum"
         >
           No tiers. No waitlist. Just sign in.
         </h2>

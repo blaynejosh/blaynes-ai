@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext.jsx';
+import { ThemeProvider } from './context/ThemeContext.jsx';
 import LoginPage from './components/auth/LoginPage.jsx';
 import AuthCallback from './components/auth/AuthCallback.jsx';
 import OnboardingForm from './components/auth/OnboardingForm.jsx';
@@ -21,48 +22,50 @@ import PrivacyPolicyPage from './components/legal/PrivacyPolicyPage.jsx';
 export default function App() {
   return (
     <BrowserRouter>
-      <AuthProvider>
-        <Routes>
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/auth/callback" element={<AuthCallback />} />
-          <Route path="/terms" element={<TermsOfUsePage />} />
-          <Route path="/privacy" element={<PrivacyPolicyPage />} />
-          <Route
-            path="/onboarding"
-            element={
-              <ProtectedRoute requireOnboarded={false} requireSafetyAddendum={false}>
-                <OnboardingForm />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/safety-addendum"
-            element={
-              <ProtectedRoute requireSafetyAddendum={false}>
-                <SafetyAddendumGate />
-              </ProtectedRoute>
-            }
-          />
-          <Route path="/" element={<HomePage />} />
-          <Route
-            path="/how-we-work"
-            element={
-              <ProtectedRoute>
-                <HowWeWork />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/:category"
-            element={
-              <ProtectedRoute>
-                <ChatPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </AuthProvider>
+      <ThemeProvider>
+        <AuthProvider>
+          <Routes>
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/auth/callback" element={<AuthCallback />} />
+            <Route path="/terms" element={<TermsOfUsePage />} />
+            <Route path="/privacy" element={<PrivacyPolicyPage />} />
+            <Route
+              path="/onboarding"
+              element={
+                <ProtectedRoute requireOnboarded={false} requireSafetyAddendum={false}>
+                  <OnboardingForm />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/safety-addendum"
+              element={
+                <ProtectedRoute requireSafetyAddendum={false}>
+                  <SafetyAddendumGate />
+                </ProtectedRoute>
+              }
+            />
+            <Route path="/" element={<HomePage />} />
+            <Route
+              path="/how-we-work"
+              element={
+                <ProtectedRoute>
+                  <HowWeWork />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/:category"
+              element={
+                <ProtectedRoute>
+                  <ChatPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </AuthProvider>
+      </ThemeProvider>
     </BrowserRouter>
   );
 }

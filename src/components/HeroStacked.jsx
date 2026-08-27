@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import HeroBackdrop from './HeroBackdrop.jsx';
 import BlayneMark from './BlayneMark.jsx';
 import AccountMenu from './auth/AccountMenu.jsx';
+import ThemeToggle from './ThemeToggle.jsx';
 import SearchBox from './SearchBox.jsx';
 import { HERO_NODES } from '../data/heroNodes.js';
 
@@ -38,7 +39,8 @@ export default function HeroStacked() {
           <BlayneMark className="h-11 w-11" />
         </Link>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
+          <ThemeToggle />
           <SearchBox variant="inline" />
           <AccountMenu />
         </div>

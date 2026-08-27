@@ -42,6 +42,27 @@
   font-display: swap;
 }
 
+/* ------------------------------------------------------------------
+   Theme: light is the default (no attribute needed); [data-theme="dark"]
+   on <html> (set by ThemeContext, persisted to localStorage) restores the
+   original dark canvas/ink this app was designed with. The four accent
+   colors (jordy/icterine/tangerine/poppy) stay fixed brand hex in both
+   themes — only canvas (delft) and ink (platinum) invert.
+
+   Known trade-off: the hero's dendrite/gem artwork (HeroBackdrop.jsx) is
+   auto-generated from Home.svg with hardcoded dark-navy fills, so it stays
+   dark in both themes rather than being redrawn per theme.
+   ------------------------------------------------------------------ */
+:root {
+  --color-delft: #f4f6fb;
+  --color-platinum: #3a405a;
+}
+
+[data-theme='dark'] {
+  --color-delft: #3a405a;
+  --color-platinum: #d9d9d9;
+}
+
 html,
 body,
 #root {
@@ -60,6 +81,15 @@ body {
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+  transition:
+    background-color 0.25s ease,
+    color 0.25s ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body {
+    transition: none;
+  }
 }
 
 h1,

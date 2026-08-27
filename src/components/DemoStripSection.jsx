@@ -46,7 +46,7 @@ export default function DemoStripSection() {
         <p className="m-0 text-xs tracking-[0.22em] text-jordy/80 uppercase">See it work</p>
         <h2
           id="demo-heading"
-          className="mt-6 mb-0 max-w-2xl text-[clamp(1.75rem,4vw,3rem)] leading-[1.1] font-normal tracking-[-0.02em] text-platinum"
+          className="display-h1 mt-6 mb-0 max-w-2xl text-[clamp(1.75rem,4vw,3rem)] leading-[1.1] font-normal tracking-[-0.02em] text-platinum"
         >
           One brief, four ways in.
         </h2>

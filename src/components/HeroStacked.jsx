@@ -55,8 +55,8 @@ export default function HeroStacked() {
       </div>
 
       <ul className="relative mt-12 flex flex-col gap-3">
-        {HERO_NODES.map((node) => (
-          <li key={node.id}>
+        {HERO_NODES.map((node, i) => (
+          <li key={node.id} className="node-in" style={{ animationDelay: `${i * 90}ms` }}>
             <Link
               to={node.to}
               aria-label={`Explore ${node.label.toLowerCase()}`}

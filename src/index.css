@@ -1,4 +1,5 @@
 @import '@fontsource-variable/inter';
+@import '@fontsource-variable/montserrat';
 @import 'tailwindcss';
 
 /* ------------------------------------------------------------------
@@ -15,6 +16,30 @@
   --font-sans:
     'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto,
     'Helvetica Neue', Arial, sans-serif;
+
+  /* Brand type: Montserrat carries section headings; body copy and the
+     chat UI stay on Inter. Mastji (--font-accent) is reserved for H1s —
+     see the @font-face rules below for the actual files. */
+  --font-heading: 'Montserrat Variable', 'Montserrat', ui-sans-serif, system-ui, sans-serif;
+  --font-accent: 'Mastji', 'Montserrat Variable', ui-sans-serif, system-ui, sans-serif;
+}
+
+/* Mastji — supplied as two static files, not a variable font: normal and
+   italic are genuinely different outlines, not a synthesized slant. */
+@font-face {
+  font-family: 'Mastji';
+  src: url('./assets/fonts/Mastji-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Mastji';
+  src: url('./assets/fonts/Mastji-Italic.woff2') format('woff2');
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
 }
 
 html,
@@ -35,6 +60,52 @@ body {
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  font-family: var(--font-heading);
+}
+
+/* H1s get Mastji, not Montserrat. Most of this app's big visual headlines
+   are marked up as h2 on purpose (one true <h1> per page, for a11y), so
+   .display-h1 marks the ones that read as an H1 even though they aren't
+   one in the markup. */
+h1,
+.display-h1 {
+  font-family: var(--font-accent);
+}
+
+/* One accent word per headline, the way SkillTree leans on an italic serif
+   against its sans workhorse — Mastji's italic cut carries that role here. */
+.accent {
+  font-family: var(--font-accent);
+  font-style: italic;
+  font-weight: 400;
+}
+
+/* Staggered entrance for the hero's four Product Map nodes. */
+@keyframes node-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.node-in {
+  animation: node-in 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .node-in {
+    animation: none;
+  }
 }
 
 /* ------------------------------------------------------------------

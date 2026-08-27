@@ -40,11 +40,11 @@ export default function UspSection() {
 
         <h2
           id="usp-heading"
-          className="mt-6 mb-0 max-w-4xl text-[clamp(2.5rem,6.5vw,5rem)] leading-[1.05] font-normal tracking-[-0.02em] text-platinum"
+          className="display-h1 mt-6 mb-0 max-w-4xl text-[clamp(2.5rem,6.5vw,5rem)] leading-[1.05] font-normal tracking-[-0.02em] text-platinum"
         >
           Your consulting team,
           <br />
-          <span className="text-jordy">on demand.</span>
+          <span className="accent text-jordy">on demand.</span>
         </h2>
 
         <p className="mt-8 mb-0 max-w-2xl text-lg leading-relaxed text-platinum/75">

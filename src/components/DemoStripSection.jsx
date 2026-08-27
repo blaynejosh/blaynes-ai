@@ -56,34 +56,36 @@ export default function DemoStripSection() {
         </p>
       </div>
 
-      <div className="scrollbar-hidden -mt-4 flex w-full gap-4 overflow-x-auto px-6 pb-4 sm:px-10 lg:justify-center">
-        {DEMOS.map((d) => (
-          <article
-            key={d.id}
-            className="material-chip w-[300px] shrink-0 overflow-hidden rounded-2xl border border-platinum/10 bg-platinum/8 sm:w-[340px]"
-          >
-            <header
-              className="flex items-center gap-2 border-b border-platinum/10 px-4 py-3"
-              style={{ borderBottomColor: d.tone, borderBottomWidth: 2 }}
+      <div className="mx-auto max-w-[1160px]">
+        <div className="scrollbar-hidden -mt-4 flex gap-4 overflow-x-auto px-6 pb-4 sm:px-10">
+          {DEMOS.map((d) => (
+            <article
+              key={d.id}
+              className="material-chip w-[300px] shrink-0 overflow-hidden rounded-2xl border border-platinum/10 bg-platinum/8 sm:w-[340px]"
             >
-              <span className="flex gap-1.5" aria-hidden="true">
-                <span className="h-2 w-2 rounded-full bg-platinum/20" />
-                <span className="h-2 w-2 rounded-full bg-platinum/20" />
-                <span className="h-2 w-2 rounded-full bg-platinum/20" />
-              </span>
-              <span className="ml-auto text-[10px] font-semibold tracking-[0.14em] text-platinum/45 uppercase">
-                {d.label}
-              </span>
-            </header>
+              <header
+                className="flex items-center gap-2 border-b border-platinum/10 px-4 py-3"
+                style={{ borderBottomColor: d.tone, borderBottomWidth: 2 }}
+              >
+                <span className="flex gap-1.5" aria-hidden="true">
+                  <span className="h-2 w-2 rounded-full bg-platinum/20" />
+                  <span className="h-2 w-2 rounded-full bg-platinum/20" />
+                  <span className="h-2 w-2 rounded-full bg-platinum/20" />
+                </span>
+                <span className="ml-auto text-[10px] font-semibold tracking-[0.14em] text-platinum/45 uppercase">
+                  {d.label}
+                </span>
+              </header>
 
-            <div className="flex flex-col gap-3 p-4">
-              <p className="m-0 rounded-lg border border-platinum/10 bg-platinum/5 px-3 py-2.5 text-[12.5px] leading-relaxed text-platinum/80">
-                {d.prompt}
-              </p>
-              <p className="m-0 text-[13px] leading-relaxed text-platinum/60">{d.answer}</p>
-            </div>
-          </article>
-        ))}
+              <div className="flex flex-col gap-3 p-4">
+                <p className="m-0 rounded-lg border border-platinum/10 bg-platinum/5 px-3 py-2.5 text-[12.5px] leading-relaxed text-platinum/80">
+                  {d.prompt}
+                </p>
+                <p className="m-0 text-[13px] leading-relaxed text-platinum/60">{d.answer}</p>
+              </div>
+            </article>
+          ))}
+        </div>
       </div>
     </section>
   );

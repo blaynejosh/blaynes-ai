@@ -9,12 +9,12 @@
     />
     <title>B.L.A.Y.N.E AI — Your consulting team, on demand</title>
     <script>
-      // Light is the default (see index.css); this only has to act early
-      // for a returning visitor who previously chose dark, so there's no
-      // flash of light before ThemeProvider mounts and takes over.
+      // Dark is the default (see index.css); this only has to act early
+      // for a returning visitor who previously chose light, so there's no
+      // flash of dark before ThemeProvider mounts and takes over.
       try {
         var t = localStorage.getItem('blayne-theme');
-        if (t === 'dark') document.documentElement.dataset.theme = 'dark';
+        if (t === 'light') document.documentElement.dataset.theme = 'light';
       } catch (e) {}
     </script>
   </head>

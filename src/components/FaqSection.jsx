@@ -24,7 +24,7 @@ const FAQS = [
 export default function FaqSection() {
   return (
     <section id="faq" aria-labelledby="faq-heading" className="w-full border-t border-jordy/15 bg-delft">
-      <div className="mx-auto max-w-[820px] px-6 py-24 sm:px-10 lg:py-32">
+      <div className="mx-auto max-w-[1160px] px-6 py-24 sm:px-10 lg:py-32">
         <p className="m-0 text-xs tracking-[0.22em] text-jordy/80 uppercase">FAQ</p>
         <h2
           id="faq-heading"
@@ -33,7 +33,7 @@ export default function FaqSection() {
           Questions worth answering upfront.
         </h2>
 
-        <div className="mt-12 flex flex-col gap-3">
+        <div className="mt-12 flex max-w-2xl flex-col gap-3">
           {FAQS.map((item) => (
             <details
               key={item.q}

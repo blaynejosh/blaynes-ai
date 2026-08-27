@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom';
 export default function GetStartedSection() {
   return (
     <section aria-labelledby="start-heading" className="w-full border-t border-jordy/15 bg-delft">
-      <div className="mx-auto max-w-[820px] px-6 py-24 text-center sm:px-10 lg:py-32">
+      <div className="mx-auto max-w-[1160px] px-6 py-24 sm:px-10 lg:py-32">
         <p className="m-0 text-xs tracking-[0.22em] text-jordy/80 uppercase">Get started</p>
         <h2
           id="start-heading"
@@ -13,7 +13,7 @@ export default function GetStartedSection() {
           No tiers. No waitlist. Just sign in.
         </h2>
 
-        <div className="material-panel mx-auto mt-10 max-w-lg rounded-2xl px-6 py-6 text-left sm:px-8">
+        <div className="material-panel mt-10 max-w-lg rounded-2xl px-6 py-6 sm:px-8">
           <h3 className="m-0 text-[15.5px] font-normal text-platinum">You&rsquo;re on the beta</h3>
           <p className="mt-2 mb-0 text-sm leading-relaxed text-platinum/70">
             Each tester gets 25 messages a day while we scale up capacity — your composer
@@ -22,7 +22,7 @@ export default function GetStartedSection() {
           </p>
         </div>
 
-        <div className="mt-10 flex flex-wrap items-center justify-center gap-4">
+        <div className="mt-10 flex flex-wrap items-center gap-4">
           <Link
             to="/features"
             className="pressable rounded-full bg-jordy px-7 py-3.5 text-[15.5px] tracking-[0.02em] text-delft no-underline transition-colors hover:bg-jordy/85 focus-visible:ring-2 focus-visible:ring-jordy focus-visible:ring-offset-2 focus-visible:ring-offset-delft focus-visible:outline-none"

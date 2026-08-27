@@ -43,36 +43,35 @@
 }
 
 /* ------------------------------------------------------------------
-   Theme: light is the default (no attribute needed); [data-theme="dark"]
-   on <html> (set by ThemeContext, persisted to localStorage) restores the
-   original dark canvas/ink this app was designed with.
+   Theme: dark is the default (no attribute needed) — this app's original
+   design and still the primary experience; [data-theme="light"] on <html>
+   (set by ThemeContext, persisted to localStorage) swaps in the light
+   variant.
 
-   Ink (platinum) goes near-black rather than delft's navy — most of the
-   app uses low-opacity ink (text-platinum/40 through /75) for secondary
-   text, and alpha blending toward a light canvas crushes contrast fast,
-   so the base tone needs real headroom to survive at low opacity.
-   Jordy also gets a light-mode-specific shade: at its original brand hex
-   it's a pale sky blue with ~2:1 contrast on a light canvas — nowhere
-   near enough for text/eyebrow use — so light mode gets a deeper, still
-   clearly-blue tone. Fill-only usage (buttons, tinted chip backgrounds)
-   isn't contrast-sensitive the same way, so this one adjustment covers
-   both without needing two separate tokens. Icterine/tangerine/poppy stay
-   fixed brand hex in both themes — they're used as fills/dots, not text.
+   Ink (platinum) goes near-black in light mode rather than delft's navy —
+   most of the app uses low-opacity ink (text-platinum/40 through /75) for
+   secondary text, and alpha blending toward a light canvas crushes
+   contrast fast, so the base tone needs real headroom to survive at low
+   opacity. Jordy also gets a light-mode-specific shade: at its original
+   brand hex it's a pale sky blue with ~2:1 contrast on a light canvas —
+   nowhere near enough for text/eyebrow use — so light mode gets a deeper,
+   still clearly-blue tone. Icterine/tangerine/poppy stay fixed brand hex
+   in both themes — they're used as fills/dots, not text.
 
    Known trade-off: the hero's dendrite/gem artwork (HeroBackdrop.jsx) is
    auto-generated from Home.svg with hardcoded dark-navy fills, so it stays
    dark in both themes rather than being redrawn per theme.
    ------------------------------------------------------------------ */
 :root {
-  --color-delft: #f4f6fb;
-  --color-platinum: #14161d;
-  --color-jordy: #2a63c7;
-}
-
-[data-theme='dark'] {
   --color-delft: #3a405a;
   --color-platinum: #d9d9d9;
   --color-jordy: #78b3f5;
+}
+
+[data-theme='light'] {
+  --color-delft: #f4f6fb;
+  --color-platinum: #14161d;
+  --color-jordy: #2a63c7;
 }
 
 html,

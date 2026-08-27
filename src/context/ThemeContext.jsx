@@ -4,14 +4,14 @@ const ThemeContext = createContext(null);
 const STORAGE_KEY = 'blayne-theme';
 
 /**
- * Light is the default (see index.css: `:root` holds the light values,
- * `[data-theme="dark"]` overrides them) — this only needs to act when a
- * visitor has explicitly chosen dark before. The blocking script in
+ * Dark is the default (see index.css: `:root` holds the dark values,
+ * `[data-theme="light"]` overrides them) — this only needs to act when a
+ * visitor has explicitly chosen light before. The blocking script in
  * index.html applies that choice before first paint so there's no flash.
  */
 export function ThemeProvider({ children }) {
   const [theme, setTheme] = useState(
-    () => localStorage.getItem(STORAGE_KEY) ?? 'light',
+    () => localStorage.getItem(STORAGE_KEY) ?? 'dark',
   );
 
   useEffect(() => {

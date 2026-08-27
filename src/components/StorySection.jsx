@@ -44,7 +44,7 @@ export default function StorySection() {
         </p>
 
         <div className="mt-14 grid gap-6 sm:grid-cols-2">
-          <div className="material-chip rounded-2xl bg-white/5 p-6 sm:p-8">
+          <div className="material-chip rounded-2xl bg-platinum/5 p-6 sm:p-8">
             <h3 className="m-0 text-[15px] font-normal text-platinum/60">The old way</h3>
             <ul className="m-0 mt-5 flex list-none flex-col gap-3 p-0">
               {OLD_WAY.map((line) => (
@@ -62,7 +62,7 @@ export default function StorySection() {
           </div>
 
           <div className="material-chip rounded-2xl bg-jordy/10 p-6 sm:p-8">
-            <h3 className="m-0 text-[15px] font-normal text-white">With BLAYNE</h3>
+            <h3 className="m-0 text-[15px] font-normal text-platinum">With BLAYNE</h3>
             <ul className="m-0 mt-5 flex list-none flex-col gap-3 p-0">
               {WITH_BLAYNE.map((line) => (
                 <li key={line} className="flex gap-3 text-sm leading-relaxed text-platinum/85">

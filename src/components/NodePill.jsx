@@ -20,7 +20,7 @@ export default function NodePill({
   // dendrite artwork rather than as a flat tint.
   const tint =
     tone === 'glass'
-      ? 'material-chip bg-white/20 hover:bg-white/30'
+      ? 'material-chip bg-platinum/10 hover:bg-platinum/15'
       : 'material-chip bg-jordy/20 hover:bg-jordy/30';
 
   return (

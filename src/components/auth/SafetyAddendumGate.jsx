@@ -68,7 +68,7 @@ export default function SafetyAddendumGate() {
               type="checkbox"
               checked={checked}
               onChange={(e) => setChecked(e.target.checked)}
-              className="mt-0.5 h-4 w-4 shrink-0 rounded border-platinum/30 bg-white/10 accent-jordy"
+              className="mt-0.5 h-4 w-4 shrink-0 rounded border-platinum/30 bg-platinum/8 accent-jordy"
             />
             I have read and agree to the Advanced AI Model Safety Addendum, and to the{' '}
             <a

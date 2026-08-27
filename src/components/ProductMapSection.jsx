@@ -69,7 +69,7 @@ export default function ProductMapSection() {
             {section.items.map((item, i) => (
               <li
                 key={itemLabel(item)}
-                className="material-chip flex items-baseline gap-3 rounded-xl bg-white/5 px-4 py-3"
+                className="material-chip flex items-baseline gap-3 rounded-xl bg-platinum/5 px-4 py-3"
               >
                 <span className="w-6 shrink-0 text-xs text-jordy/60 tabular-nums">
                   {String(i + 1).padStart(2, '0')}

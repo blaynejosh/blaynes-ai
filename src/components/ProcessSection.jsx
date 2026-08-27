@@ -22,7 +22,7 @@ export default function ProcessSection() {
             >
               <span className="shrink-0 text-sm text-jordy/70 tabular-nums">{step.n}</span>
               <div>
-                <h3 className="m-0 text-[15px] font-normal text-white">{step.title}</h3>
+                <h3 className="m-0 text-[15px] font-normal text-platinum">{step.title}</h3>
                 <p className="mt-1.5 mb-0 text-sm leading-relaxed text-platinum/70">
                   {step.body}
                 </p>

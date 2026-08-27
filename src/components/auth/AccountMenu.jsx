@@ -75,7 +75,7 @@ export default function AccountMenu({ className = '' }) {
             type="button"
             role="menuitem"
             onClick={() => signOut()}
-            className="pressable-text w-full cursor-pointer rounded-lg border-0 bg-transparent px-3 py-2 text-left text-sm text-platinum/85 hover:bg-white/5"
+            className="pressable-text w-full cursor-pointer rounded-lg border-0 bg-transparent px-3 py-2 text-left text-sm text-platinum/85 hover:bg-platinum/5"
           >
             Sign out
           </button>

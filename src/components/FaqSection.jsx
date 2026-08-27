@@ -37,7 +37,7 @@ export default function FaqSection() {
           {FAQS.map((item) => (
             <details
               key={item.q}
-              className="material-chip group rounded-2xl bg-white/5 px-5 py-4 open:bg-white/[0.07] sm:px-6"
+              className="material-chip group rounded-2xl bg-platinum/5 px-5 py-4 open:bg-platinum/[0.08] sm:px-6"
             >
               <summary className="flex cursor-pointer list-none items-center justify-between gap-4 text-[15.5px] font-normal text-platinum [&::-webkit-details-marker]:hidden">
                 {item.q}

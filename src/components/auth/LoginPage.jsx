@@ -82,7 +82,7 @@ export default function LoginPage() {
 
         {sent ? (
           <p className="m-0 rounded-2xl bg-jordy/10 px-5 py-4 text-center text-sm text-platinum/85">
-            Check <span className="text-white">{email}</span> for a sign-in link.
+            Check <span className="text-platinum">{email}</span> for a sign-in link.
           </p>
         ) : (
           <form onSubmit={withEmail} className="flex flex-col gap-3">
@@ -92,7 +92,7 @@ export default function LoginPage() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="you@company.com"
-              className="rounded-full bg-white/10 px-5 py-3.5 text-[15px] text-platinum placeholder:text-platinum/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-jordy"
+              className="rounded-full bg-platinum/8 px-5 py-3.5 text-[15px] text-platinum placeholder:text-platinum/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-jordy"
             />
             <button
               type="submit"

@@ -14,7 +14,7 @@ export default function GetStartedSection() {
         </h2>
 
         <div className="material-panel mx-auto mt-10 max-w-lg rounded-2xl px-6 py-6 text-left sm:px-8">
-          <h3 className="m-0 text-[15.5px] font-normal text-white">You&rsquo;re on the beta</h3>
+          <h3 className="m-0 text-[15.5px] font-normal text-platinum">You&rsquo;re on the beta</h3>
           <p className="mt-2 mb-0 text-sm leading-relaxed text-platinum/70">
             Each tester gets 25 messages a day while we scale up capacity — your composer
             shows how many you have left. Everything else — every feature, every layer of

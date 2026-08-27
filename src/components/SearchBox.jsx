@@ -113,8 +113,8 @@ export default function SearchBox({ variant = 'stage' }) {
           aria-label="Search the Product Map"
           className={
             variant === 'stage'
-              ? 'pressable material-chip flex h-10 w-full items-center justify-between rounded-full bg-white/20 px-5 text-platinum no-underline transition-colors hover:bg-white/30 focus-visible:ring-2 focus-visible:ring-jordy focus-visible:outline-none'
-              : 'pressable material-chip flex items-center gap-3 rounded-full bg-white/20 px-4 py-2.5 text-sm text-platinum transition-colors hover:bg-white/30 focus-visible:ring-2 focus-visible:ring-jordy focus-visible:outline-none'
+              ? 'pressable material-chip flex h-10 w-full items-center justify-between rounded-full bg-platinum/10 px-5 text-platinum no-underline transition-colors hover:bg-platinum/15 focus-visible:ring-2 focus-visible:ring-jordy focus-visible:outline-none'
+              : 'pressable material-chip flex items-center gap-3 rounded-full bg-platinum/10 px-4 py-2.5 text-sm text-platinum transition-colors hover:bg-platinum/15 focus-visible:ring-2 focus-visible:ring-jordy focus-visible:outline-none'
           }
         >
           <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-jordy" />
@@ -170,7 +170,7 @@ export default function SearchBox({ variant = 'stage' }) {
                       onMouseEnter={() => setActiveIndex(i)}
                       onClick={() => go(entry)}
                       className={`pressable-text flex w-full cursor-pointer items-center justify-between gap-3 rounded-lg border-0 bg-transparent px-3 py-2.5 text-left text-sm transition-colors ${
-                        i === activeIndex ? 'bg-jordy/15 text-white' : 'text-platinum/85'
+                        i === activeIndex ? 'bg-jordy/15 text-platinum' : 'text-platinum/85'
                       }`}
                     >
                       <span className="truncate">{entry.label}</span>

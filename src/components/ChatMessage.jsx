@@ -8,28 +8,28 @@ import Markdown from 'react-markdown';
 const MD = {
   p: ({ children }) => <p className="my-3 first:mt-0 last:mb-0">{children}</p>,
   h1: ({ children }) => (
-    <h3 className="mt-5 mb-2 text-base font-normal text-white first:mt-0">{children}</h3>
+    <h3 className="mt-5 mb-2 text-base font-normal text-platinum first:mt-0">{children}</h3>
   ),
   h2: ({ children }) => (
-    <h3 className="mt-5 mb-2 text-base font-normal text-white first:mt-0">{children}</h3>
+    <h3 className="mt-5 mb-2 text-base font-normal text-platinum first:mt-0">{children}</h3>
   ),
   h3: ({ children }) => (
-    <h4 className="mt-4 mb-2 text-sm font-normal text-white first:mt-0">{children}</h4>
+    <h4 className="mt-4 mb-2 text-sm font-normal text-platinum first:mt-0">{children}</h4>
   ),
   ul: ({ children }) => <ul className="my-3 list-disc space-y-1 pl-5">{children}</ul>,
   ol: ({ children }) => <ol className="my-3 list-decimal space-y-1 pl-5">{children}</ol>,
   li: ({ children }) => <li className="pl-1">{children}</li>,
-  strong: ({ children }) => <strong className="font-semibold text-white">{children}</strong>,
+  strong: ({ children }) => <strong className="font-semibold text-platinum">{children}</strong>,
   a: ({ children, href }) => (
     <a href={href} className="text-jordy underline underline-offset-2">
       {children}
     </a>
   ),
   code: ({ children }) => (
-    <code className="rounded bg-delft/60 px-1.5 py-0.5 text-[0.9em]">{children}</code>
+    <code className="rounded bg-platinum/8 px-1.5 py-0.5 text-[0.9em]">{children}</code>
   ),
   pre: ({ children }) => (
-    <pre className="my-3 overflow-x-auto rounded-xl bg-delft/70 p-4 text-[0.85em]">
+    <pre className="my-3 overflow-x-auto rounded-xl bg-platinum/10 p-4 text-[0.85em]">
       {children}
     </pre>
   ),
@@ -44,7 +44,7 @@ const MD = {
     </div>
   ),
   th: ({ children }) => (
-    <th className="border-b border-jordy/25 px-3 py-2 font-normal text-white">{children}</th>
+    <th className="border-b border-jordy/25 px-3 py-2 font-normal text-platinum">{children}</th>
   ),
   td: ({ children }) => (
     <td className="border-b border-jordy/10 px-3 py-2 align-top">{children}</td>

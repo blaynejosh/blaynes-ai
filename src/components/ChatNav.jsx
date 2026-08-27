@@ -52,7 +52,7 @@ export default function ChatNav({ onToggleSidebar, sidebarOpen }) {
                   to={`/${s.id}`}
                   className={({ isActive }) =>
                     `relative flex h-full items-center whitespace-nowrap py-4 text-[15.2px] tracking-[0.055em] no-underline transition-colors focus-visible:ring-2 focus-visible:ring-jordy focus-visible:outline-none ${
-                      isActive ? 'text-white' : 'text-platinum/70 hover:text-platinum'
+                      isActive ? 'text-platinum' : 'text-platinum/70 hover:text-platinum'
                     }`
                   }
                 >

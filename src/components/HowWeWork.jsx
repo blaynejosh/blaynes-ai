@@ -83,7 +83,7 @@ export default function HowWeWork() {
               >
                 <span className="shrink-0 text-sm text-jordy/70 tabular-nums">{step.n}</span>
                 <div>
-                  <h3 className="m-0 text-[15.5px] font-normal text-white">{step.title}</h3>
+                  <h3 className="m-0 text-[15.5px] font-normal text-platinum">{step.title}</h3>
                   <p className="mt-1.5 mb-0 text-sm leading-relaxed text-platinum/70">
                     {step.body}
                   </p>
@@ -94,7 +94,7 @@ export default function HowWeWork() {
                           <Link
                             to={`/${s.id}`}
                             title={s.intro}
-                            className="pressable-text rounded-full bg-jordy/15 px-3.5 py-1.5 text-xs tracking-[0.03em] text-platinum/85 no-underline hover:bg-jordy/25 hover:text-white"
+                            className="pressable-text rounded-full bg-jordy/15 px-3.5 py-1.5 text-xs tracking-[0.03em] text-platinum/85 no-underline hover:bg-jordy/25 hover:text-platinum"
                           >
                             {s.title}
                           </Link>
@@ -160,7 +160,7 @@ export default function HowWeWork() {
           </h2>
           <div className="mt-8 grid gap-6 sm:grid-cols-2">
             <div>
-              <h3 className="m-0 text-[15px] font-normal text-white">It will</h3>
+              <h3 className="m-0 text-[15px] font-normal text-platinum">It will</h3>
               <ul className="m-0 mt-3 flex list-none flex-col gap-2.5 p-0 text-sm leading-relaxed text-platinum/70">
                 <li>Say plainly when it isn&rsquo;t confident, and what would resolve it</li>
                 <li>Flag a decision that needs a human at Blayne&rsquo;s Consulting</li>
@@ -172,7 +172,7 @@ export default function HowWeWork() {
               </ul>
             </div>
             <div>
-              <h3 className="m-0 text-[15px] font-normal text-white">It won&rsquo;t</h3>
+              <h3 className="m-0 text-[15px] font-normal text-platinum">It won&rsquo;t</h3>
               <ul className="m-0 mt-3 flex list-none flex-col gap-2.5 p-0 text-sm leading-relaxed text-platinum/70">
                 <li>Present a judgement call as settled fact</li>
                 <li>Guarantee an outcome, or treat an estimate as a commitment</li>
@@ -188,7 +188,7 @@ export default function HowWeWork() {
       <section className="w-full border-t border-jordy/15">
         <div className="mx-auto max-w-[820px] px-6 py-16 sm:px-10">
           <div className="material-panel rounded-2xl px-6 py-6 sm:px-8">
-            <h2 className="m-0 text-[15.5px] font-normal text-white">
+            <h2 className="m-0 text-[15.5px] font-normal text-platinum">
               You&rsquo;re on the beta
             </h2>
             <p className="mt-2 mb-0 text-sm leading-relaxed text-platinum/70">

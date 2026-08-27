@@ -60,16 +60,16 @@ export default function DemoStripSection() {
         {DEMOS.map((d) => (
           <article
             key={d.id}
-            className="material-chip w-[300px] shrink-0 overflow-hidden rounded-2xl border border-white/10 bg-black/15 sm:w-[340px]"
+            className="material-chip w-[300px] shrink-0 overflow-hidden rounded-2xl border border-platinum/10 bg-platinum/8 sm:w-[340px]"
           >
             <header
-              className="flex items-center gap-2 border-b border-white/10 px-4 py-3"
+              className="flex items-center gap-2 border-b border-platinum/10 px-4 py-3"
               style={{ borderBottomColor: d.tone, borderBottomWidth: 2 }}
             >
               <span className="flex gap-1.5" aria-hidden="true">
-                <span className="h-2 w-2 rounded-full bg-white/15" />
-                <span className="h-2 w-2 rounded-full bg-white/15" />
-                <span className="h-2 w-2 rounded-full bg-white/15" />
+                <span className="h-2 w-2 rounded-full bg-platinum/20" />
+                <span className="h-2 w-2 rounded-full bg-platinum/20" />
+                <span className="h-2 w-2 rounded-full bg-platinum/20" />
               </span>
               <span className="ml-auto text-[10px] font-semibold tracking-[0.14em] text-platinum/45 uppercase">
                 {d.label}
@@ -77,7 +77,7 @@ export default function DemoStripSection() {
             </header>
 
             <div className="flex flex-col gap-3 p-4">
-              <p className="m-0 rounded-lg border border-white/10 bg-white/5 px-3 py-2.5 text-[12.5px] leading-relaxed text-platinum/80">
+              <p className="m-0 rounded-lg border border-platinum/10 bg-platinum/5 px-3 py-2.5 text-[12.5px] leading-relaxed text-platinum/80">
                 {d.prompt}
               </p>
               <p className="m-0 text-[13px] leading-relaxed text-platinum/60">{d.answer}</p>

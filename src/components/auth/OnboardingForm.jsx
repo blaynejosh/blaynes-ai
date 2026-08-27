@@ -7,7 +7,7 @@ import { supabase } from '../../lib/supabase.js';
 const COMPANY_SIZES = ['1-10', '11-50', '51-200', '201-1000', '1000+'];
 
 const FIELD =
-  'w-full rounded-2xl bg-white/10 px-5 py-3.5 text-[15px] text-platinum placeholder:text-platinum/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-jordy';
+  'w-full rounded-2xl bg-platinum/8 px-5 py-3.5 text-[15px] text-platinum placeholder:text-platinum/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-jordy';
 
 function Toggle({ options, value, onChange }) {
   return (
@@ -21,7 +21,7 @@ function Toggle({ options, value, onChange }) {
           className={`pressable rounded-full px-5 py-2.5 text-sm transition-colors ${
             value === val
               ? 'bg-jordy text-delft'
-              : 'bg-white/10 text-platinum/75 hover:bg-white/15'
+              : 'bg-platinum/8 text-platinum/75 hover:bg-platinum/12'
           }`}
         >
           {label}
@@ -167,7 +167,7 @@ export default function OnboardingForm() {
                     className={`pressable rounded-full px-4 py-2 text-sm transition-colors ${
                       companySize === size
                         ? 'bg-jordy text-delft'
-                        : 'bg-white/10 text-platinum/75 hover:bg-white/15'
+                        : 'bg-platinum/8 text-platinum/75 hover:bg-platinum/12'
                     }`}
                   >
                     {size}

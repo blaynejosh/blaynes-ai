@@ -3,12 +3,48 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta
-      name="description"
-      content="B.L.A.Y.N.E AI — Business Leading Agent Yielding Next-Gen Enterprise Strategies. Your consulting team, on demand."
-    />
-    <title>B.L.A.Y.N.E AI — Your consulting team, on demand</title>
-    <script>
+    <meta name="theme-color" content="#3a405a" />
+    <!-- Read by src/components/Seo.jsx so page-specific JSON-LD it inserts
+         can carry the same per-request nonce this document was served with
+         (see server/index.js) and satisfy this app's script-src CSP. -->
+    <meta name="csp-nonce" content="%%CSP_NONCE%%" />
+
+    <!--
+      %%PAGE_*%% tokens are filled in per-request by server/index.js
+      (renderIndexHtml/ROUTE_META) — this file's job is just to hold sane,
+      real defaults (the home page's own tags) for the one case that never
+      goes through that path: `vite dev`/`vite preview`, which serve this
+      file verbatim with no server templating at all. Once the app's JS
+      takes over, src/components/Seo.jsx corrects these again client-side
+      for the actual route, for the same visible values kept in sync by hand
+      in ROUTE_META and each page's <Seo> call — there's no single source of
+      truth across the server/client split without a bigger SSR change.
+    -->
+    <title>%%PAGE_TITLE%%</title>
+    <meta name="description" content="%%PAGE_DESCRIPTION%%" />
+    <meta name="robots" content="%%PAGE_ROBOTS%%" />
+    <link rel="canonical" href="%%PAGE_CANONICAL%%" />
+
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="icon" href="/favicon-32x32.png" type="image/png" sizes="32x32" />
+    <link rel="icon" href="/favicon-16x16.png" type="image/png" sizes="16x16" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" sizes="180x180" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="B.L.A.Y.N.E AI" />
+    <meta property="og:title" content="%%PAGE_TITLE%%" />
+    <meta property="og:description" content="%%PAGE_DESCRIPTION%%" />
+    <meta property="og:url" content="%%PAGE_CANONICAL%%" />
+    <meta property="og:image" content="https://blaynes.ai/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="B.L.A.Y.N.E AI — your consulting team, on demand" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="%%PAGE_TITLE%%" />
+    <meta name="twitter:description" content="%%PAGE_DESCRIPTION%%" />
+    <meta name="twitter:image" content="https://blaynes.ai/og-image.png" />
+
+    <script nonce="%%CSP_NONCE%%">
       // Dark is the default (see index.css); this only has to act early
       // for a returning visitor who previously chose light, so there's no
       // flash of dark before ThemeProvider mounts and takes over.
@@ -16,6 +52,20 @@
         var t = localStorage.getItem('blayne-theme');
         if (t === 'light') document.documentElement.dataset.theme = 'light';
       } catch (e) {}
+    </script>
+
+    <script type="application/ld+json" nonce="%%CSP_NONCE%%">
+      {
+        "@context": "https://schema.org",
+        "@type": "Organization",
+        "name": "Blayne's Consulting",
+        "alternateName": "B.L.A.Y.N.E AI",
+        "url": "https://blaynes.ai/",
+        "logo": "https://blaynes.ai/logo.png",
+        "email": "team@blaynes.consulting",
+        "description": "B.L.A.Y.N.E — Business Leading Agent Yielding Next-Gen Enterprise Strategies — is Blayne's Consulting's AI consulting team, on demand.",
+        "sameAs": ["https://blaynes.consulting", "https://www.blaynesconsulting.com"]
+      }
     </script>
   </head>
   <body>

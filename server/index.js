@@ -25,6 +25,7 @@
 import express from 'express';
 import helmet from 'helmet';
 import multer from 'multer';
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -355,6 +356,19 @@ const publicAsset = ({ storage_path, ...rest }) => rest;
 const app = express();
 
 /*
+ * One random nonce per request, used to allow the handful of inline
+ * <script> tags this app actually ships (the anti-flash theme bootstrap in
+ * index.html, and the JSON-LD Seo.jsx/Breadcrumbs.jsx insert client-side)
+ * under a strict script-src — see the CSP below and renderIndexHtml().
+ * Generated ahead of helmet so its CSP directive function (below) can read
+ * it back off res.locals.
+ */
+app.use((req, res, next) => {
+  res.locals.cspNonce = crypto.randomBytes(16).toString('base64');
+  next();
+});
+
+/*
  * CSP is scoped to what this app actually does, not helmet's generic default.
  * style-src allows 'unsafe-inline' deliberately: the hero and Product Map
  * sections position hundreds of elements via computed inline `style` props
@@ -363,13 +377,17 @@ const app = express();
  * `script-src`, so it doesn't open up script injection. connect-src allows
  * any *.supabase.co host rather than hardcoding this project's ref, so the
  * policy doesn't need editing if the Supabase project ever changes.
+ *
+ * script-src carries the per-request nonce instead of 'unsafe-inline' — the
+ * nonce is what lets the theme-bootstrap script and page JSON-LD run at all
+ * without weakening the policy against injected script generally.
  */
 app.use(
   helmet({
     contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'self'"],
-        scriptSrc: ["'self'"],
+        scriptSrc: ["'self'", (req, res) => `'nonce-${res.locals.cspNonce}'`],
         styleSrc: ["'self'", "'unsafe-inline'"],
         imgSrc: ["'self'", 'data:'],
         fontSrc: ["'self'"],
@@ -691,8 +709,98 @@ app.all('/api/*splat', (req, res) => res.status(404).json({ error: 'Not found' }
    serves the front end on :5173 and proxies /api here, so dist/ won't exist
    and this block is skipped without erroring. */
 if (fs.existsSync(distDir)) {
-  app.use(express.static(distDir));
-  app.get('*splat', (req, res) => res.sendFile(path.join(distDir, 'index.html')));
+  // Read once at boot — the build doesn't change while the process runs —
+  // and template in a fresh per-request nonce plus this route's title/
+  // description/canonical/robots (see ROUTE_META below) on the way out.
+  //
+  // The nonce is what lets the inline theme-bootstrap script and
+  // client-inserted JSON-LD (Seo.jsx, Breadcrumbs.jsx) run at all instead of
+  // silently getting blocked and logging a CSP violation. The per-route meta
+  // matters for anything that reads this raw HTML instead of running the
+  // app's JS: link-preview unfurlers (Slack, iMessage, X, Discord) and any
+  // crawler that only honors a noindex tag on a page it's actually allowed
+  // to fetch — which is also why public/robots.txt doesn't Disallow any of
+  // these routes; a Disallowed page's noindex meta can never be seen, and
+  // Google says so explicitly. src/components/Seo.jsx re-applies the same
+  // values (by hand, not from this shared registry — no SSR here) once the
+  // app's JS takes over for a real visitor.
+  const indexHtmlTemplate = fs.readFileSync(path.join(distDir, 'index.html'), 'utf-8');
+
+  const SITE_URL = 'https://blaynes.ai';
+  const HOME_META = {
+    title: 'B.L.A.Y.N.E AI — Your Consulting Team, On Demand',
+    description:
+      "B.L.A.Y.N.E AI — Business Leading Agent Yielding Next-Gen Enterprise Strategies. Twenty consulting capability modules, mapped to the roles of a fully staffed enterprise, from Blayne's Consulting.",
+    canonical: `${SITE_URL}/`,
+    robots: 'index, follow',
+  };
+  // Every route not listed here — the auth-gated app screens — falls back to
+  // GATED_META below: there's nothing server-rendered to preview for them
+  // (the real content is entirely client-rendered behind sign-in), so they
+  // just need a sane title and a noindex that a crawler can actually read.
+  const ROUTE_META = {
+    '/': HOME_META,
+    '/terms': {
+      title: 'Terms of Use | B.L.A.Y.N.E AI',
+      description:
+        "The terms governing your use of B.L.A.Y.N.E, Blayne's Consulting's AI consulting product.",
+      canonical: `${SITE_URL}/terms`,
+      robots: 'index, follow',
+    },
+    '/privacy': {
+      title: 'Privacy Policy | B.L.A.Y.N.E AI',
+      description:
+        "What personal information B.L.A.Y.N.E collects, how it's used, and the privacy rights you have over it.",
+      canonical: `${SITE_URL}/privacy`,
+      robots: 'index, follow',
+    },
+  };
+  const GATED_META = { ...HOME_META, robots: 'noindex, nofollow' };
+
+  // Paths React Router actually has a route for (see src/App.jsx), used both
+  // to pick ROUTE_META above and the HTTP status on the SPA fallback below —
+  // so a broken/typo'd link still reads as a real 404 to anything that
+  // checks the status code, not just the rendered body, even though the
+  // same index.html (and client-side NotFoundPage) is what serves it either
+  // way.
+  const KNOWN_STATIC_PATHS = new Set([
+    '/',
+    '/login',
+    '/auth/callback',
+    '/onboarding',
+    '/safety-addendum',
+    '/terms',
+    '/privacy',
+    '/how-we-work',
+  ]);
+  // The four Product Map routes (see src/data/productMap.js MAP_SECTIONS),
+  // matched by src/App.jsx's single "/:category" route.
+  const KNOWN_CATEGORIES = new Set(['features', 'job-roles', 'departments', 'startups']);
+  const isKnownPath = (p) => KNOWN_STATIC_PATHS.has(p) || KNOWN_CATEGORIES.has(p.slice(1));
+
+  const renderIndexHtml = (nonce, meta) =>
+    indexHtmlTemplate
+      .replaceAll('%%CSP_NONCE%%', nonce)
+      .replaceAll('%%PAGE_TITLE%%', meta.title)
+      .replaceAll('%%PAGE_DESCRIPTION%%', meta.description)
+      .replaceAll('%%PAGE_CANONICAL%%', meta.canonical)
+      .replaceAll('%%PAGE_ROBOTS%%', meta.robots);
+
+  const sendIndexHtml = (req, res) => {
+    const known = isKnownPath(req.path);
+    const meta = (known && ROUTE_META[req.path]) || GATED_META;
+    res
+      .status(known ? 200 : 404)
+      .set('Cache-Control', 'no-store') // the nonce is single-use — this response must never be cached
+      .type('html')
+      .send(renderIndexHtml(res.locals.cspNonce, meta));
+  };
+
+  // `index: false` — otherwise static would serve the un-templated
+  // dist/index.html straight off disk for "/", leaving the literal
+  // "%%CSP_NONCE%%" placeholder in place instead of a real nonce.
+  app.use(express.static(distDir, { index: false }));
+  app.get('*splat', sendIndexHtml);
 }
 
 // Multer's fileFilter/size-limit failures arrive here, not in the route handler.

@@ -1,16 +1,22 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { Suspense, lazy } from 'react';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext.jsx';
 import { ThemeProvider } from './context/ThemeContext.jsx';
-import LoginPage from './components/auth/LoginPage.jsx';
-import AuthCallback from './components/auth/AuthCallback.jsx';
-import OnboardingForm from './components/auth/OnboardingForm.jsx';
-import SafetyAddendumGate from './components/auth/SafetyAddendumGate.jsx';
 import ProtectedRoute from './components/auth/ProtectedRoute.jsx';
 import HomePage from './components/HomePage.jsx';
-import ChatPage from './components/ChatPage.jsx';
-import HowWeWork from './components/HowWeWork.jsx';
-import TermsOfUsePage from './components/legal/TermsOfUsePage.jsx';
-import PrivacyPolicyPage from './components/legal/PrivacyPolicyPage.jsx';
+
+// Everything past the home page is code-split: none of it is needed for the
+// first paint of the marketing page, which is the route search engines and
+// most first-time visitors actually land on.
+const LoginPage = lazy(() => import('./components/auth/LoginPage.jsx'));
+const AuthCallback = lazy(() => import('./components/auth/AuthCallback.jsx'));
+const OnboardingForm = lazy(() => import('./components/auth/OnboardingForm.jsx'));
+const SafetyAddendumGate = lazy(() => import('./components/auth/SafetyAddendumGate.jsx'));
+const ChatPage = lazy(() => import('./components/ChatPage.jsx'));
+const HowWeWork = lazy(() => import('./components/HowWeWork.jsx'));
+const TermsOfUsePage = lazy(() => import('./components/legal/TermsOfUsePage.jsx'));
+const PrivacyPolicyPage = lazy(() => import('./components/legal/PrivacyPolicyPage.jsx'));
+const NotFoundPage = lazy(() => import('./components/NotFoundPage.jsx'));
 
 /**
  * Two surfaces: the public marketing home page, and the chat product at one
@@ -24,46 +30,48 @@ export default function App() {
     <BrowserRouter>
       <ThemeProvider>
         <AuthProvider>
-          <Routes>
-            <Route path="/login" element={<LoginPage />} />
-            <Route path="/auth/callback" element={<AuthCallback />} />
-            <Route path="/terms" element={<TermsOfUsePage />} />
-            <Route path="/privacy" element={<PrivacyPolicyPage />} />
-            <Route
-              path="/onboarding"
-              element={
-                <ProtectedRoute requireOnboarded={false} requireSafetyAddendum={false}>
-                  <OnboardingForm />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/safety-addendum"
-              element={
-                <ProtectedRoute requireSafetyAddendum={false}>
-                  <SafetyAddendumGate />
-                </ProtectedRoute>
-              }
-            />
-            <Route path="/" element={<HomePage />} />
-            <Route
-              path="/how-we-work"
-              element={
-                <ProtectedRoute>
-                  <HowWeWork />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/:category"
-              element={
-                <ProtectedRoute>
-                  <ChatPage />
-                </ProtectedRoute>
-              }
-            />
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
+          <Suspense fallback={<div className="min-h-svh bg-delft" />}>
+            <Routes>
+              <Route path="/login" element={<LoginPage />} />
+              <Route path="/auth/callback" element={<AuthCallback />} />
+              <Route path="/terms" element={<TermsOfUsePage />} />
+              <Route path="/privacy" element={<PrivacyPolicyPage />} />
+              <Route
+                path="/onboarding"
+                element={
+                  <ProtectedRoute requireOnboarded={false} requireSafetyAddendum={false}>
+                    <OnboardingForm />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/safety-addendum"
+                element={
+                  <ProtectedRoute requireSafetyAddendum={false}>
+                    <SafetyAddendumGate />
+                  </ProtectedRoute>
+                }
+              />
+              <Route path="/" element={<HomePage />} />
+              <Route
+                path="/how-we-work"
+                element={
+                  <ProtectedRoute>
+                    <HowWeWork />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/:category"
+                element={
+                  <ProtectedRoute>
+                    <ChatPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route path="*" element={<NotFoundPage />} />
+            </Routes>
+          </Suspense>
         </AuthProvider>
       </ThemeProvider>
     </BrowserRouter>

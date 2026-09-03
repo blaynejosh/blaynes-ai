@@ -3,6 +3,7 @@ import { useParams, useSearchParams, Navigate } from 'react-router-dom';
 import ChatBackdrop from './ChatBackdrop.jsx';
 import ChatNav from './ChatNav.jsx';
 import ChatMessage from './ChatMessage.jsx';
+import Seo from './Seo.jsx';
 import { streamReply, fetchUsage } from '../lib/chat.js';
 import { listBrandAssets, uploadBrandAssets, deleteBrandAsset } from '../lib/brandAssets.js';
 import { MAP_SECTIONS } from '../data/productMap.js';
@@ -176,6 +177,13 @@ export default function ChatPage() {
 
   return (
     <div className="relative flex h-svh flex-col overflow-hidden bg-delft">
+      <Seo
+        title={section.title}
+        description={`Start a B.L.A.Y.N.E session for ${section.title.toLowerCase()} — ${section.intro}`}
+        path={`/${category}`}
+        noindex
+      />
+
       <ChatBackdrop
         className="pointer-events-none fixed inset-0 h-full w-full"
         preserveAspectRatio="xMidYMid slice"

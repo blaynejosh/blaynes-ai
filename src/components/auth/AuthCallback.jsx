@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Navigate } from 'react-router-dom';
+import Seo from '../Seo.jsx';
 import { useAuth } from '../../context/AuthContext.jsx';
 
 /**
@@ -27,6 +28,8 @@ export default function AuthCallback() {
 
   return (
     <div className="flex min-h-svh items-center justify-center bg-delft">
+      <Seo title="Signing in" path="/auth/callback" noindex />
+      <h1 className="sr-only">Signing in</h1>
       <p className="text-sm text-platinum/60">Signing you in…</p>
     </div>
   );

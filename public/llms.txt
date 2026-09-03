@@ -1,0 +1,19 @@
+# B.L.A.Y.N.E AI
+
+> B.L.A.Y.N.E — Business Leading Agent Yielding Next-Gen Enterprise Strategies — is Blayne's Consulting's AI consulting team. It's a chat-based product that produces strategy, brand, product, sales, fundraising, and technical-documentation work across twenty capability modules, mapped to the roles and departments of a fully staffed enterprise.
+
+B.L.A.Y.N.E answers the way a senior consultant would: it asks what actually matters, shows its reasoning, and is explicit about how much weight to put on what it just said. It is a drafting and analysis aid, not an autonomous decision-maker — outputs should be reviewed by a qualified human before being relied on for a material business decision.
+
+Access to the chat product requires a free account (Google or email sign-in) and is currently rate-limited per tester during beta.
+
+## Pages
+
+- [Home](https://blaynes.ai/): what B.L.A.Y.N.E does, the Product Map (Features, Job Roles, Departments, Start Ups), and how to start a session.
+- [How We Work](https://blaynes.ai/how-we-work): the method behind an answer, from sign-in to output (requires sign-in).
+- [Terms of Use](https://blaynes.ai/terms): the terms governing use of the Service.
+- [Privacy Policy](https://blaynes.ai/privacy): what data is collected and how it's used.
+- [Advanced AI Model Safety Addendum](https://blaynes.ai/safety-addendum): model capabilities, limitations, and prohibited uses (requires sign-in).
+
+## Contact
+
+team@blaynes.consulting

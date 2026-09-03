@@ -4,6 +4,7 @@ import BlayneMark from './BlayneMark.jsx';
 import AccountMenu from './auth/AccountMenu.jsx';
 import ThemeToggle from './ThemeToggle.jsx';
 import SiteFooter from './SiteFooter.jsx';
+import Seo from './Seo.jsx';
 import { MAP_SECTIONS } from '../data/productMap.js';
 import { STEPS } from '../data/howWeWork.js';
 
@@ -32,6 +33,13 @@ const EXPERTISE = [
 export default function HowWeWork() {
   return (
     <div className="flex min-h-full flex-col items-center bg-delft">
+      <Seo
+        title="How We Work"
+        description="B.L.A.Y.N.E answers the way a senior consultant would: it asks what matters, shows its reasoning, and is explicit about how much weight to put on its answer."
+        path="/how-we-work"
+        noindex
+      />
+
       <header className="w-full">
         <div className="mx-auto flex max-w-[1160px] items-center justify-between px-6 py-6 sm:px-10">
           <Link

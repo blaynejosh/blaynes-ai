@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import BlayneMark from '../BlayneMark.jsx';
+import Seo from '../Seo.jsx';
 import { useAuth } from '../../context/AuthContext.jsx';
 
 /**
@@ -43,6 +44,13 @@ export default function LoginPage() {
 
   return (
     <div className="flex min-h-svh flex-col items-center justify-center bg-delft px-6 py-16">
+      <Seo
+        title="Sign in"
+        description="Sign in to start a B.L.A.Y.N.E session."
+        path="/login"
+        noindex
+      />
+
       <BlayneMark className="h-14 w-14" />
       <h1 className="mt-6 mb-0 text-2xl font-normal text-platinum">B.L.A.Y.N.E</h1>
       <p className="mt-2 mb-10 max-w-xs text-center text-sm text-platinum/60">

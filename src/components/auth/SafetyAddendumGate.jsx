@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import BlayneMark from '../BlayneMark.jsx';
 import LegalDocument from '../legal/LegalDocument.jsx';
+import Seo from '../Seo.jsx';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { supabase } from '../../lib/supabase.js';
 import { SAFETY_ADDENDUM_MD } from '../../lib/legalContent.js';
@@ -48,6 +49,8 @@ export default function SafetyAddendumGate() {
 
   return (
     <div className="flex min-h-svh flex-col items-center bg-delft px-6 py-14">
+      <Seo title="Advanced AI Model Safety Addendum" path="/safety-addendum" noindex />
+
       <BlayneMark className="h-11 w-11" />
       <h1 className="mt-5 mb-1 text-center text-xl font-normal text-platinum">
         Advanced AI Model Safety Addendum

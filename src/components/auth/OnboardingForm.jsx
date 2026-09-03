@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import BlayneMark from '../BlayneMark.jsx';
+import Seo from '../Seo.jsx';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { supabase } from '../../lib/supabase.js';
 
@@ -95,6 +96,8 @@ export default function OnboardingForm() {
 
   return (
     <div className="flex min-h-svh flex-col items-center bg-delft px-6 py-14">
+      <Seo title="Tell us about yourself" path="/onboarding" noindex />
+
       <BlayneMark className="h-11 w-11" />
       <h1 className="mt-5 mb-1 text-xl font-normal text-platinum">Tell us about yourself</h1>
       <p className="m-0 mb-8 max-w-sm text-center text-sm text-platinum/60">

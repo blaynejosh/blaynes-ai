@@ -79,6 +79,19 @@ Document-production and visual-design skills in the bucket (`editor`, `proofread
 
 Auth to GCS is Application Default Credentials, not an env var: `gcloud auth application-default login` locally, the runtime service account on Cloud Run/GCE when deployed. `BLAYNE_SKILLS_BUCKET` overrides the bucket name if you're not using `blayne-skills-bbip`.
 
+### Service routing (Blayne's Consulting's own catalogue)
+
+B.L.A.Y.N.E is aware of Blayne's Consulting's own 6-category, 30-service catalogue and recommends it, first, when a conversation reaches a genuine execution moment ("we need someone to build this," "nobody here knows Zoho") — never for pure strategy questions. This is backend-only: the catalogue is never sent to the browser, never listed to the user, never exposed by an API response. See `server/catalogue/` and `blayne_skills/service_routing.md`.
+
+- **The catalogue** (`catalogue/blaynes-services.json`) is a reviewed, git-tracked file — a change to it is a real PR, not an incidental edit. Bump `version` and `last_verified` when you touch it. Uploaded to GCS (same bucket as skills, `catalogue/` prefix) with `npm run catalogue:upload`, loaded and schema-validated at server *boot* (`server/catalogue/loader.js`) — unlike skills, a missing or invalid catalogue is a hard startup failure, not a soft degrade, since routing on broken data is worse than not routing at all.
+- **Matching** is hybrid: lexical (name + aliases, normalized, stemmed) plus semantic (Vertex AI `text-embedding-005` — a separate surface from Claude; see `server/catalogue/embeddings.js`). Embeddings are precomputed once with `npm run catalogue:embeddings` (run this after any catalogue edit, before `catalogue:upload`) — 30 rows never need re-embedding at request time. Thresholds are calibrated to under-recommend on purpose; see the comment block at the top of `server/catalogue/search.js`.
+- **Alias tuning without a deploy** (Phase 8): aliases drift from what real users type, and tuning them shouldn't need an engineer. `catalogue_alias_overrides` (Supabase) is a live-editable layer on top of the reviewed catalogue, edited directly in the Supabase Table Editor; every change is captured in `catalogue_alias_audit` by a trigger, automatically, regardless of what wrote the row.
+- **Frequency cap and observability**: `routing_state` (per-thread, so a recommendation doesn't repeat in one conversation) and `routing_events` (every decision, CTA click, and guardrail repair) are new Supabase tables — see `supabase/schema.sql`. No existing analytics pipeline exists in this app to plug into instead.
+- **Guardrails** (`server/guardrails.js`) run once the model's full turn text is known and append a correction if disclosure is missing, the model denies the commercial relationship, a price is quoted for Blayne's Consulting, or an unverified external company name shows up with no caveat nearby. Because this app streams live, a repair can only append a correction after the fact, not retroactively edit tokens already sent — see the comment at the top of that file.
+- **Build-time leak check**: `npm run build` now also runs `scripts/check-no-catalogue-leak.mjs`, which fails the build if any catalogue string ends up in `dist/`.
+- **Eval suite**: `npm test` runs the Phase 7 golden set (`test/golden-cases.mjs`, 40 cases) against the matcher and guardrails with no live GCP credentials needed (lexical-only fallback). It does not, and cannot, verify live-model prose quality or true prompt-injection resistance — see the note at the bottom of `test/golden-cases.mjs`.
+- **Freshness**: `npm run catalogue:check-freshness` re-reads `blaynes.consulting/services` and diffs it against the local file, opening a GitHub review issue (or writing a local report) on drift — never auto-merging scraped content. Meant to run weekly via Cloud Run Job + Cloud Scheduler; see the gcloud commands at the bottom of that script.
+
 ### Brand documents
 
 A tester can attach brand materials (manual, deck, logo) from the chat surface — `POST/GET/DELETE /api/brand-assets` in `server/index.js`. The bytes live in Cloud Storage (`server/uploadStorage.js`, bucket `BLAYNE_UPLOADS_BUCKET`), not Anthropic's Files API: Vertex AI doesn't support the Files API or the code-execution container (see below), so there's nowhere to upload a file to *once* and just reference afterwards.
@@ -139,6 +152,33 @@ gcloud run deploy blayne-web \
 ```
 
 `--timeout=600` matters — chat answers stream over a long-lived connection, and Cloud Run's default 300s timeout is tight for a long consulting answer with skills and adaptive thinking. `--set-secrets` maps a Secret Manager secret into the container at runtime, access-controlled separately from the Cloud Run service config; a plain `--set-env-vars` value is visible to anyone with viewer IAM on the project.
+
+### A second environment (staging, or standing prod up again)
+
+`scripts/setup-gcp-project.sh PROJECT_ID [REGION]` scripts everything above
+that has a `gcloud`/`gsutil` equivalent — enabling APIs, the Artifact
+Registry repo, the Vertex AI IAM binding, both GCS buckets with their IAM
+grants, and pushing the skill set — against a **different** GCP project, so
+a staging environment doesn't share Vertex AI quota, buckets, or IAM with
+production. Run it once per new project:
+
+```bash
+./scripts/setup-gcp-project.sh blayne-ai-staging
+```
+
+It prints the `gcloud builds submit` / `gcloud run deploy` commands for that
+project at the end, with bucket names and project id already filled in.
+
+Two things it can't do for you, because no CLI exists for either:
+
+1. Accept the Claude model terms in **Vertex AI → Model Garden** for the new
+   project (one console click).
+2. Create the Supabase project for this environment, run
+   `supabase/schema.sql` in its SQL Editor, and configure OAuth providers —
+   full isolation means a separate Supabase project, not just a separate GCP
+   project. (If you're on a Supabase paid plan, its **branching** feature
+   gives you an isolated staging database off the *same* project instead —
+   no second project or OAuth reconfiguration needed.)
 
 **Custom domain:**
 

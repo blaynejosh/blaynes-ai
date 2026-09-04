@@ -25,6 +25,14 @@ secrets.json
 # skill content — data, not code; lives in GCS (see server/skillStorage.js)
 blayne_skills/
 
+# catalogue embeddings — regenerated from catalogue/blaynes-services.json via
+# `npm run catalogue:embeddings`, not hand-edited; unlike the catalogue JSON
+# itself, this isn't a reviewed change. See server/catalogue/embeddings.js.
+catalogue/blaynes-services.embeddings.json
+
+# freshness check output (scripts/check-catalogue-freshness.mjs)
+catalogue-freshness-report.json
+
 # logs / OS noise
 *.log
 npm-debug.log*

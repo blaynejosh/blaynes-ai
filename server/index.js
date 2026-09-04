@@ -34,12 +34,22 @@ import { buildSystem } from './blaynePrompt.js';
 import { loadSkills } from './skillStorage.js';
 import { storeUserFile, readUserFile, deleteUserFile } from './uploadStorage.js';
 import { supabaseAdmin, hasSupabase } from './supabaseAdmin.js';
+import { initCatalogue, getCatalogueIndex } from './catalogue/loader.js';
+import { matchNeed } from './catalogue/search.js';
+import { getAliasOverrides } from './catalogue/aliasOverrides.js';
+import { checkFrequencyCap, recordShown } from './catalogue/routingState.js';
+import { logRoutingDecision, logCtaClick, logGuardrailCheck } from './catalogue/events.js';
+import { checkTurn, isDisclosureRequired } from './guardrails.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const distDir = path.join(here, '..', 'dist');
 
 const PORT = Number(process.env.PORT ?? 8787);
 const MODEL = process.env.BLAYNE_MODEL ?? 'claude-opus-5';
+
+/** Where the CTA redirect (see /api/cta/:serviceId) sends a clicked recommendation. */
+const PUBLIC_ORIGIN = process.env.PUBLIC_ORIGIN ?? 'https://blaynes.ai';
+const BLAYNES_CONSULTING_CONTACT_URL = 'https://blaynes.consulting/contact';
 
 /** Beta cap: 25 messages/day/tester. Enforced atomically in Postgres — see
  *  check_and_increment_usage() in supabase/schema.sql — so it can't be beaten
@@ -75,7 +85,7 @@ const MAX_RESUMES = 8;
  * Names below must match an object's filename in the bucket exactly (no
  * .md) — see `npm run skills:list`.
  */
-const CORE_SKILLS = ['bbip', 'methodology', 'business_brand_guidelines', 'writing_standards'];
+const CORE_SKILLS = ['bbip', 'methodology', 'business_brand_guidelines', 'writing_standards', 'service_routing'];
 
 /**
  * The remaining specialist skills — everything bbip's routing table names
@@ -157,6 +167,35 @@ const SAVE_CONTEXT_TOOL = {
       value: { type: 'string', description: 'The fact itself, as the client stated it.' },
     },
     required: ['field', 'value'],
+  },
+};
+
+/**
+ * Backs the service-routing layer (see blayne_skills/service_routing.md,
+ * the CORE skill that tells the model when to call this). The tool never
+ * exposes the catalogue itself — only the shaped verdict/matches/disclosure
+ * result from server/catalogue/search.js — so the catalogue stays backend
+ * only regardless of what the model does with the result. The actual
+ * matching, frequency-cap enforcement, and event logging happen server-side
+ * in the tool_use handling below, not in this schema.
+ */
+const SEARCH_SERVICES_TOOL = {
+  name: 'search_blaynes_services',
+  description:
+    "Check a client's need against Blayne's Consulting's service catalogue. Call this the moment a request becomes an execution moment (the client needs someone to actually do the work, not just advise on it) — see the service_routing skill for trigger conditions. Never answer scope questions from memory or guess whether Blayne's Consulting offers something; this tool has the real answer. Returns a verdict (in_scope / partly_in_scope / out_of_scope), the matched services if any, what's not covered, a disclosure string, and a CTA link.",
+  input_schema: {
+    type: 'object',
+    properties: {
+      need: {
+        type: 'string',
+        description: "The client's need, in their own words or your best paraphrase of it.",
+      },
+      context: {
+        type: 'string',
+        description: 'Optional extra framing already known about this client (industry, size, stack) that sharpens the match.',
+      },
+    },
+    required: ['need'],
   },
 };
 
@@ -516,6 +555,11 @@ app.post('/api/chat', requireAuth, async (req, res) => {
     return res.status(400).json({ error: 'Conversation must start with a user message.' });
   }
 
+  // Per-thread state for the routing frequency cap (see catalogue/routingState.js)
+  // — the client generates one crypto.randomUUID() per chat session (src/lib/chat.js)
+  // since nothing else in this app persists a conversation/thread id.
+  const threadId = typeof req.body?.thread_id === 'string' ? req.body.thread_id.slice(0, 100) : null;
+
   // Atomic check-then-increment in Postgres (see supabase/schema.sql) — the
   // request is rejected here, before any Claude call, rather than after.
   const { data: quotaRows, error: quotaError } = await supabaseAdmin.rpc(
@@ -561,7 +605,7 @@ app.post('/api/chat', requireAuth, async (req, res) => {
   });
   const send = (payload) => res.write(`data: ${JSON.stringify(payload)}\n\n`);
 
-  const tools = [SKILL_TOOL, SAVE_CONTEXT_TOOL];
+  const tools = [SKILL_TOOL, SAVE_CONTEXT_TOOL, SEARCH_SERVICES_TOOL];
 
   const request = {
     model: MODEL,
@@ -605,6 +649,13 @@ app.post('/api/chat', requireAuth, async (req, res) => {
   });
 
   let resumes = 0;
+  // Accumulated across every resume in this turn, so the guardrail repair
+  // pass (below) sees the whole answer, not just the segment after the last
+  // tool call — see server/guardrails.js for why this can only append, not
+  // retroactively edit what already streamed.
+  let assistantText = '';
+  let disclosureRequiredThisTurn = false;
+  let recommendedServiceIdsThisTurn = [];
 
   try {
     while (true) {
@@ -612,6 +663,7 @@ app.post('/api/chat', requireAuth, async (req, res) => {
 
       for await (const event of stream) {
         if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
+          assistantText += event.delta.text;
           send({ type: 'text', text: event.delta.text });
         }
       }
@@ -650,6 +702,56 @@ app.post('/api/chat', requireAuth, async (req, res) => {
                 }
               }
 
+              if (block.name === 'search_blaynes_services') {
+                try {
+                  const extraAliasesByServiceId = await getAliasOverrides();
+                  const catalogueIndex = getCatalogueIndex();
+                  const result = await matchNeed({
+                    need: String(block.input?.need ?? ''),
+                    context: block.input?.context ? String(block.input.context) : undefined,
+                    catalogueIndex,
+                    extraAliasesByServiceId,
+                    ctaBaseUrl: PUBLIC_ORIGIN,
+                    threadId,
+                  });
+
+                  const matchedServiceIds = result.matches.map((m) => m.service_id);
+                  const { capped } = await checkFrequencyCap(threadId, matchedServiceIds);
+                  const owed = isDisclosureRequired({ verdict: result.verdict, frequencyCapped: capped });
+                  if (owed) {
+                    disclosureRequiredThisTurn = true;
+                    recommendedServiceIdsThisTurn = [...recommendedServiceIdsThisTurn, ...matchedServiceIds];
+                  }
+
+                  logRoutingDecision({
+                    threadId,
+                    userId: req.userId,
+                    verdict: result.verdict,
+                    matches: result.matches,
+                    frequencyCapped: capped,
+                  }).catch(() => {});
+
+                  const toolPayload = capped
+                    ? {
+                        ...result,
+                        frequency_capped: true,
+                        directive:
+                          "Already recommended in this thread for this need. Do not restate the recommendation or disclosure unless the client explicitly asks again or this is a genuinely new need — see the frequency cap section of the service_routing skill.",
+                      }
+                    : { ...result, frequency_capped: false };
+
+                  return { type: 'tool_result', tool_use_id: block.id, content: JSON.stringify(toolPayload) };
+                } catch (err) {
+                  console.error('[blayne] search_blaynes_services failed:', err.message);
+                  return {
+                    type: 'tool_result',
+                    tool_use_id: block.id,
+                    content: 'Service lookup failed — answer without a Blayne\'s Consulting recommendation this turn rather than guessing.',
+                    is_error: true,
+                  };
+                }
+              }
+
               return { type: 'tool_result', tool_use_id: block.id, content: 'Unknown tool.', is_error: true };
             }),
         );
@@ -667,6 +769,27 @@ app.post('/api/chat', requireAuth, async (req, res) => {
           blayne_usage: blayneUsage,
         });
       } else {
+        // Guardrail repair (Phase 4) — see server/guardrails.js for why this
+        // can only append a correction, not retroactively edit text that has
+        // already streamed to the client.
+        const { repairText, violations } = checkTurn(assistantText, {
+          disclosureRequired: disclosureRequiredThisTurn,
+        });
+        if (repairText) {
+          console.warn(`[blayne] guardrail repair on thread ${threadId ?? '(none)'}:`, violations.join(', '));
+          send({ type: 'text', text: repairText });
+        }
+        if (violations.length) {
+          logGuardrailCheck({
+            threadId,
+            disclosureRequired: disclosureRequiredThisTurn,
+            disclosurePresentBeforeRepair: disclosureRequiredThisTurn && !violations.includes('missing_disclosure'),
+            violations,
+          }).catch(() => {});
+        }
+        if (recommendedServiceIdsThisTurn.length) {
+          recordShown(threadId, req.userId, recommendedServiceIdsThisTurn).catch(() => {});
+        }
         send({
           type: 'done',
           stop_reason: final.stop_reason,
@@ -700,6 +823,18 @@ app.post('/api/chat', requireAuth, async (req, res) => {
   } finally {
     res.end();
   }
+});
+
+/**
+ * The link every recommendation's `cta_url` (see catalogue/search.js) points
+ * at, instead of the real Blayne's Consulting contact page directly — so a
+ * click is observable (Phase 6's "whether the CTA was clicked") without any
+ * new frontend UI: the existing Markdown renderer already turns this into a
+ * plain link. No auth required — this is a public redirect, not client data.
+ */
+app.get('/api/cta/:serviceId', (req, res) => {
+  logCtaClick({ threadId: req.query.thread ?? null, serviceId: req.params.serviceId }).catch(() => {});
+  res.redirect(302, BLAYNES_CONSULTING_CONTACT_URL);
 });
 
 app.all('/api/*splat', (req, res) => res.status(404).json({ error: 'Not found' }));
@@ -817,6 +952,21 @@ app.use((err, req, res, next) => {
   }
   next();
 });
+
+/*
+ * The service catalogue loads eagerly and hard-fails boot on any problem —
+ * unlike skills (soft-fail, lazy) — see the comment atop
+ * server/catalogue/loader.js for why. A silently broken or missing
+ * catalogue is worse than the server not starting: it would either recommend
+ * services that don't exist or silently stop recommending anything real.
+ */
+try {
+  await initCatalogue();
+} catch (err) {
+  console.error('[blayne] FATAL: could not load the service catalogue —', err.message);
+  console.error('[blayne] Refusing to start rather than run with service routing silently broken.');
+  process.exit(1);
+}
 
 app.listen(PORT, () => {
   console.log(`[blayne] API on http://localhost:${PORT} (model: ${MODEL})`);

@@ -55,6 +55,13 @@ export default function ChatPage() {
   const abortRef = useRef(null);
   const scrollRef = useRef(null);
   const fileInputRef = useRef(null);
+  // One id per conversation, not per page load — regenerated wherever
+  // `messages` resets (below), since that's this app's actual notion of "a
+  // new thread." The server keys the routing recommendation's frequency cap
+  // on this (see server/catalogue/routingState.js) — nothing else here
+  // persists a conversation id, so this is a client-only value, never read
+  // back from the server.
+  const threadIdRef = useRef(crypto.randomUUID());
 
   useEffect(() => {
     fetchUsage().then(setUsage);
@@ -106,6 +113,7 @@ export default function ChatPage() {
     setMessages([]);
     setError(null);
     setStreaming(false);
+    threadIdRef.current = crypto.randomUUID();
 
     // A search result arrives as /:category?topic=<label> — pre-select that
     // item, then drop the param so it doesn't linger in the address bar.
@@ -140,6 +148,7 @@ export default function ChatPage() {
           category,
           topic,
           messages: history.map(({ role, content }) => ({ role, content })),
+          threadId: threadIdRef.current,
           signal: controller.signal,
           onText: append,
         });

@@ -1,0 +1,463 @@
+{
+  "version": "1.0.0",
+  "source_url": "https://blaynes.consulting/services",
+  "last_verified": "2026-09-04",
+  "categories": [
+    {
+      "id": "diagnostic-roadmap",
+      "name": "Digital Transformation Audit & Roadmap",
+      "scope": "Assessing current systems, processes and data to produce a prioritized transformation roadmap.",
+      "services": [
+        {
+          "id": "business-process-mapping",
+          "name": "Business Process Mapping & Operational Analysis",
+          "description": "End-to-end analysis of how work flows across your organization to surface bottlenecks and improvement areas.",
+          "outcome": "Clear visibility into operational performance.",
+          "aliases": [
+            "map our processes",
+            "process mapping",
+            "find our bottlenecks",
+            "why is our team so slow",
+            "operations audit",
+            "workflow analysis",
+            "where are we losing time",
+            "process improvement"
+          ]
+        },
+        {
+          "id": "customer-journey-evaluation",
+          "name": "Customer Journey & Conversion Flow Evaluation",
+          "description": "Map every touchpoint from awareness to retention and identify where prospects drop off.",
+          "outcome": "Higher conversion across the funnel.",
+          "aliases": [
+            "customer journey mapping",
+            "why are people dropping off",
+            "funnel analysis",
+            "conversion funnel audit",
+            "where do we lose customers",
+            "customer journey audit",
+            "touchpoint mapping"
+          ]
+        },
+        {
+          "id": "tech-stack-assessment",
+          "name": "Technology Stack & System Architecture Assessment",
+          "description": "Evaluate your existing platforms, integrations, and architecture for scalability, fit, and risk.",
+          "outcome": "A clear view of what to keep, replace, or rebuild.",
+          "aliases": [
+            "audit our tech stack",
+            "should we replace our software",
+            "system architecture review",
+            "tech stack review",
+            "is our software the right fit",
+            "evaluate our platforms",
+            "software audit"
+          ]
+        },
+        {
+          "id": "data-flow-analysis",
+          "name": "Data Flow & Decision-Making Analysis",
+          "description": "Audit how data moves through the business and powers decisions across teams.",
+          "outcome": "An actionable transformation roadmap with priorities, timelines, and measurable outcomes.",
+          "aliases": [
+            "data audit",
+            "how does data move through our company",
+            "we don't trust our reports",
+            "data flow review",
+            "decision-making audit",
+            "our data is a mess"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "ai-automation",
+      "name": "AI-Powered Process Automation",
+      "scope": "Embedding AI into workflows for engagement, sales/marketing automation, data processing and lead qualification.",
+      "services": [
+        {
+          "id": "ai-customer-engagement",
+          "name": "AI-Driven Customer Engagement & Interaction Systems",
+          "description": "Intelligent interaction systems that respond, personalize, and convert across every channel.",
+          "outcome": "Always-on customer experiences that scale.",
+          "aliases": [
+            "ai chatbot for customers",
+            "automate customer support",
+            "ai customer service",
+            "24/7 customer engagement",
+            "personalize customer interactions",
+            "build us a chatbot"
+          ]
+        },
+        {
+          "id": "sales-marketing-automation",
+          "name": "Automated Sales & Marketing Workflows",
+          "description": "End-to-end automation across lead capture, nurture, qualification, and routing.",
+          "outcome": "Faster pipeline, lower manual effort.",
+          "aliases": [
+            "automate our sales process",
+            "automate lead nurturing",
+            "marketing automation",
+            "automate follow ups",
+            "we do everything manually in sales",
+            "workflow automation for sales"
+          ]
+        },
+        {
+          "id": "ai-reporting-insights",
+          "name": "Intelligent Data Processing, Reporting & Insights Generation",
+          "description": "Automated data processing, reporting, and AI-generated insights to power decision-making.",
+          "outcome": "Faster, smarter, data-backed decisions.",
+          "aliases": [
+            "automate our reporting",
+            "ai generated insights",
+            "automated dashboards",
+            "we spend too much time on reports",
+            "ai for data analysis",
+            "automatic business insights"
+          ]
+        },
+        {
+          "id": "ai-lead-qualification",
+          "name": "AI-Powered Lead Qualification & Routing",
+          "description": "Score, qualify, and route leads automatically to the right owner at the right time.",
+          "outcome": "Higher conversion and faster response times.",
+          "aliases": [
+            "automate lead scoring",
+            "route leads automatically",
+            "qualify leads with ai",
+            "our leads sit unassigned",
+            "lead routing automation",
+            "score our leads"
+          ]
+        },
+        {
+          "id": "custom-ai-workflows",
+          "name": "Custom AI Workflows Tailored to Your Operations",
+          "description": "Bespoke AI workflows built specifically for your business processes and use cases.",
+          "outcome": "AI as a core operational layer, not an add-on.",
+          "aliases": [
+            "build a custom ai workflow",
+            "we need ai but don't know where to start",
+            "ai automation for our specific process",
+            "custom ai solution",
+            "ai for our unique operations",
+            "bespoke automation"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "revenue-gtm",
+      "name": "Revenue & Go-To-Market Transformation",
+      "scope": "GTM strategy, lead generation, sales pipeline, conversion funnels and outbound infrastructure as one revenue system.",
+      "services": [
+        {
+          "id": "gtm-strategy-architecture",
+          "name": "Go-To-Market Strategy & System Architecture",
+          "description": "Design the structure of your revenue motion, segments, offers, channels, and the systems that power them.",
+          "outcome": "A coherent, scalable go-to-market foundation.",
+          "aliases": [
+            "go to market strategy",
+            "gtm strategy",
+            "we need a launch strategy",
+            "how do we structure our sales motion",
+            "revenue strategy",
+            "market entry strategy"
+          ]
+        },
+        {
+          "id": "lead-gen-automation",
+          "name": "Lead Generation & Qualification Automation",
+          "description": "Automated inbound and outbound lead generation with intelligent qualification built in.",
+          "outcome": "Predictable, high-quality lead flow.",
+          "aliases": [
+            "we need more leads",
+            "lead generation help",
+            "automate outbound",
+            "our pipeline is empty",
+            "generate qualified leads",
+            "outbound lead gen"
+          ]
+        },
+        {
+          "id": "sales-pipeline-optimization",
+          "name": "Sales Pipeline Design & Optimization",
+          "description": "Pipeline architecture, stages, and workflows engineered for repeatable conversion.",
+          "outcome": "Faster, more predictable pipeline velocity.",
+          "aliases": [
+            "fix our sales pipeline",
+            "sales process is broken",
+            "optimize our pipeline",
+            "deals stall in our pipeline",
+            "sales pipeline design",
+            "improve close rate"
+          ]
+        },
+        {
+          "id": "revenue-conversion-funnels",
+          "name": "Conversion-Focused Digital Experiences & Funnels",
+          "description": "Funnels and digital journeys designed end-to-end for conversion at every stage.",
+          "outcome": "More revenue from the same traffic.",
+          "aliases": [
+            "build a sales funnel",
+            "we get traffic but no sales",
+            "conversion funnel for revenue",
+            "improve our funnel",
+            "funnel design for revenue growth"
+          ]
+        },
+        {
+          "id": "performance-marketing-systems",
+          "name": "Performance Marketing & Campaign Systems",
+          "description": "Paid media, campaign infrastructure, and performance tracking built to scale profitably.",
+          "outcome": "Lower CAC, higher ROAS.",
+          "aliases": [
+            "run our paid ads",
+            "performance marketing",
+            "our ad spend isn't working",
+            "paid media management",
+            "campaign management",
+            "lower our customer acquisition cost"
+          ]
+        },
+        {
+          "id": "gtm-engineering-outbound",
+          "name": "GTM Engineering & Outbound Infrastructure",
+          "description": "Outbound infrastructure and GTM engineering leveraging platforms like Clay.",
+          "outcome": "A scalable, data-driven revenue system.",
+          "aliases": [
+            "set up clay for outbound",
+            "gtm engineering",
+            "outbound infrastructure",
+            "cold outbound systems",
+            "build our outbound stack",
+            "revops engineering"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "systems-integration",
+      "name": "Technology & Systems Integration",
+      "scope": "Unifying CRM (including Zoho), ERP, APIs, cloud infrastructure and no-code/low-code tooling into one stack.",
+      "services": [
+        {
+          "id": "crm-implementation-zoho",
+          "name": "CRM Implementation & Optimization (Zoho Systems)",
+          "description": "Implement, configure, and optimize your CRM to align with sales, marketing, and service workflows.",
+          "outcome": "A CRM that actually drives revenue.",
+          "aliases": [
+            "set up zoho",
+            "we need a crm",
+            "implement zoho crm",
+            "our crm is a mess",
+            "zoho consultant",
+            "crm setup",
+            "nobody uses our crm properly",
+            "zoho partner"
+          ]
+        },
+        {
+          "id": "bpa-workflow-design",
+          "name": "Business Process Automation & Workflow Design",
+          "description": "Design and automate cross-functional workflows that eliminate manual handoffs.",
+          "outcome": "Faster execution, fewer errors.",
+          "aliases": [
+            "automate our workflows",
+            "too many manual handoffs",
+            "workflow design",
+            "eliminate manual steps",
+            "cross department automation",
+            "process automation"
+          ]
+        },
+        {
+          "id": "api-integrations",
+          "name": "API Integrations Across Platforms & Tools",
+          "description": "Connect your platforms and tools so data and processes move seamlessly across the stack.",
+          "outcome": "One source of truth, zero data silos.",
+          "aliases": [
+            "our tools don't talk to each other",
+            "integrate our software",
+            "api integration",
+            "connect our systems",
+            "our data is siloed",
+            "sync our platforms"
+          ]
+        },
+        {
+          "id": "erp-system-alignment",
+          "name": "ERP & System Alignment",
+          "description": "Align ERP and operational systems with the rest of your tech stack and workflows.",
+          "outcome": "Operational coherence at scale.",
+          "aliases": [
+            "erp implementation",
+            "align our erp with everything else",
+            "erp integration",
+            "erp system help",
+            "operational systems alignment"
+          ]
+        },
+        {
+          "id": "cloud-infrastructure-optimization",
+          "name": "Cloud-Based Infrastructure Optimization",
+          "description": "Optimize cloud architecture for performance, cost-efficiency, and scalability.",
+          "outcome": "Reliable, cost-effective infrastructure.",
+          "aliases": [
+            "our cloud bill is too high",
+            "optimize our cloud infrastructure",
+            "cloud architecture review",
+            "cloud cost optimization",
+            "scale our infrastructure"
+          ]
+        },
+        {
+          "id": "no-code-low-code-implementation",
+          "name": "No-Code & Low-Code System Implementation",
+          "description": "Build internal tools and systems rapidly using no-code and low-code platforms.",
+          "outcome": "A connected, efficient, and scalable operational backbone.",
+          "aliases": [
+            "build an internal tool without code",
+            "no code app",
+            "low code system",
+            "we need an internal tool fast",
+            "no code automation"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "digital-experience",
+      "name": "Digital Experience & Conversion Infrastructure",
+      "scope": "Websites, landing pages, funnels, CRO, creative and UX built to convert and to connect to the rest of the stack.",
+      "services": [
+        {
+          "id": "website-design-development",
+          "name": "Website Design & Development",
+          "description": "Custom websites built for performance, scalability, and seamless integration with your systems.",
+          "outcome": "A digital flagship that compounds in value.",
+          "aliases": [
+            "we need a new website",
+            "website design",
+            "build us a website",
+            "redesign our website",
+            "website development",
+            "our website is outdated"
+          ]
+        },
+        {
+          "id": "landing-pages-funnels",
+          "name": "High-Converting Landing Pages & Funnels",
+          "description": "Landing pages and funnels engineered end-to-end to convert.",
+          "outcome": "More revenue from the same traffic.",
+          "aliases": [
+            "build a landing page",
+            "landing page design",
+            "we need a campaign landing page",
+            "high converting landing page"
+          ]
+        },
+        {
+          "id": "conversion-rate-optimization",
+          "name": "Conversion Rate Optimization (CRO)",
+          "description": "Ongoing experimentation and optimization grounded in data and user behavior.",
+          "outcome": "Compounding lift in conversion over time.",
+          "aliases": [
+            "cro",
+            "improve our conversion rate",
+            "a/b testing",
+            "why isn't our website converting",
+            "conversion rate optimization",
+            "optimize our site for conversions"
+          ]
+        },
+        {
+          "id": "creative-design-campaigns",
+          "name": "Creative Design for Marketing & Digital Campaigns",
+          "description": "Creative assets for campaigns, ads, and digital touchpoints that perform.",
+          "outcome": "On-brand creative that converts.",
+          "aliases": [
+            "design our ad creative",
+            "campaign creative",
+            "we need marketing graphics",
+            "creative design for campaigns",
+            "design assets for our ads"
+          ]
+        },
+        {
+          "id": "ux-ui-optimization",
+          "name": "User Experience (UX) & Interface Optimization",
+          "description": "UX and UI optimization across every digital touchpoint in the customer journey.",
+          "outcome": "Brand experience that drives business outcomes.",
+          "aliases": [
+            "improve our ux",
+            "our app is confusing to use",
+            "ui/ux review",
+            "user experience audit",
+            "interface redesign"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "organizational-enablement",
+      "name": "Organizational Enablement",
+      "scope": "Stakeholder alignment, training, process documentation and KPI frameworks so transformation sticks.",
+      "services": [
+        {
+          "id": "stakeholder-alignment-planning",
+          "name": "Stakeholder Alignment & Transformation Planning",
+          "description": "Align leadership and teams around a shared transformation vision, plan, and roadmap.",
+          "outcome": "Organization-wide buy-in.",
+          "aliases": [
+            "get leadership aligned",
+            "stakeholder alignment",
+            "our team isn't on the same page about this change",
+            "change planning",
+            "transformation planning"
+          ]
+        },
+        {
+          "id": "training-onboarding-systems",
+          "name": "Training & Onboarding Systems for Teams",
+          "description": "Onboarding programs and enablement that get teams confident and productive on new systems.",
+          "outcome": "Faster adoption, less friction.",
+          "aliases": [
+            "train our team on the new system",
+            "onboarding program",
+            "nobody knows how to use the new tool",
+            "team training",
+            "user adoption help"
+          ]
+        },
+        {
+          "id": "process-documentation-playbooks",
+          "name": "Process Documentation & Operational Playbooks",
+          "description": "Documented processes and playbooks that codify how the organization operates.",
+          "outcome": "Repeatable, scalable operations.",
+          "aliases": [
+            "document our processes",
+            "we have no sops",
+            "create playbooks for the team",
+            "process documentation",
+            "standard operating procedures"
+          ]
+        },
+        {
+          "id": "kpi-performance-frameworks",
+          "name": "Performance Tracking & KPI Frameworks",
+          "description": "Performance dashboards and KPI frameworks built for continuous improvement.",
+          "outcome": "Transformation that is sustained and continuously improved.",
+          "aliases": [
+            "set up kpi dashboards",
+            "we don't track the right metrics",
+            "kpi framework",
+            "performance tracking system",
+            "build us a dashboard"
+          ]
+        }
+      ]
+    }
+  ]
+}

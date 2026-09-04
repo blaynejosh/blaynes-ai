@@ -26,15 +26,17 @@ async function authHeader() {
  * @param {string}   opts.category  Product Map layer id (`features`, …).
  * @param {?string}  opts.topic     Selected item, if any.
  * @param {Array}    opts.messages  Conversation so far: {role, content}.
+ * @param {string}   [opts.threadId] Per-session id — see server/catalogue/routingState.js;
+ *   the recommendation frequency cap is keyed on this, not on anything the model tracks itself.
  * @param {AbortSignal} [opts.signal]
  * @param {(chunk: string) => void} opts.onText  Called per streamed fragment.
  * @returns {Promise<{stopReason?: string, refused?: string, usage?: {used:number,limit:number}}>}
  */
-export async function streamReply({ category, topic, messages, signal, onText }) {
+export async function streamReply({ category, topic, messages, threadId, signal, onText }) {
   const res = await fetch('/api/chat', {
     method: 'POST',
     headers: { 'content-type': 'application/json', ...(await authHeader()) },
-    body: JSON.stringify({ category, topic, messages }),
+    body: JSON.stringify({ category, topic, messages, thread_id: threadId }),
     signal,
   });
 

@@ -17,7 +17,7 @@
     "catalogue:embeddings": "node --env-file-if-exists=.env scripts/build-catalogue-embeddings.mjs",
     "catalogue:upload": "node --env-file-if-exists=.env scripts/upload-catalogue.mjs",
     "catalogue:check-freshness": "node --env-file-if-exists=.env scripts/check-catalogue-freshness.mjs",
-    "test": "node --test test/"
+    "test": "node --test"
   },
   "dependencies": {
     "@anthropic-ai/vertex-sdk": "^0.19.5",

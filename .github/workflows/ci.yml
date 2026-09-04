@@ -1,0 +1,52 @@
+name: CI
+
+# Phase 7's "fail the build on any regression" and the catalogue-leak
+# acceptance criterion ("verified by a test, not by inspection") both need
+# an actual CI trigger to mean anything — this repo had none before (see
+# README/Phase 0 notes: deploys are manual `gcloud builds submit` /
+# `gcloud run deploy`, no GitHub Actions). This workflow is that gate; it
+# does not touch deployment, which stays manual on purpose.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    name: Eval suite (npm test)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # The golden-set eval (test/) runs lexical-only by design — no live
+      # GCP credentials needed here, see search.js's calibration notes and
+      # test/golden-cases.mjs's closing comment on what this suite does and
+      # doesn't cover (live-model prose quality needs a separate, non-CI pass).
+      - run: npm test
+
+  build:
+    name: Build + catalogue leak check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # Not secret (see .env.example) — Vite bakes these into the static
+      # bundle at build time, but they're not GCP/Anthropic credentials, so
+      # a placeholder value is fine for CI: this build never runs against a
+      # real Supabase project, it only has to produce dist/ so
+      # check-no-catalogue-leak.mjs (chained into `npm run build`) has
+      # something to scan.
+      - run: npm run build
+        env:
+          VITE_SUPABASE_URL: https://ci-placeholder.supabase.co
+          VITE_SUPABASE_ANON_KEY: ci-placeholder-anon-key

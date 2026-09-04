@@ -30,6 +30,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { AnthropicVertex } from '@anthropic-ai/vertex-sdk';
+import Anthropic from '@anthropic-ai/sdk';
 import { buildSystem } from './blaynePrompt.js';
 import { loadSkills } from './skillStorage.js';
 import { storeUserFile, readUserFile, deleteUserFile } from './uploadStorage.js';
@@ -205,11 +206,19 @@ const SEARCH_SERVICES_TOOL = {
  * @google-cloud/storage client in skillStorage.js/uploadStorage.js. No API
  * key. Requires the Claude models to be enabled for this project in Vertex
  * AI Model Garden.
+ *
+ * TEMPORARY: while Vertex AI quota on this project is still too low for full
+ * app testing, setting ANTHROPIC_API_KEY switches to the direct Anthropic
+ * API instead (same model IDs, same messages.stream() surface — no other
+ * code here changes). Remove this branch and the ANTHROPIC_API_KEY read once
+ * Vertex quota is raised; AnthropicVertex should stay the only path.
  */
-const client = new AnthropicVertex({
-  projectId: process.env.ANTHROPIC_VERTEX_PROJECT_ID,
-  region: process.env.CLOUD_ML_REGION ?? 'global',
-});
+const client = process.env.ANTHROPIC_API_KEY
+  ? new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+  : new AnthropicVertex({
+      projectId: process.env.ANTHROPIC_VERTEX_PROJECT_ID,
+      region: process.env.CLOUD_ML_REGION ?? 'global',
+    });
 
 /** Only role/content survives; anything else the client sent is discarded. */
 function sanitize(messages) {
@@ -969,7 +978,8 @@ try {
 }
 
 app.listen(PORT, () => {
-  console.log(`[blayne] API on http://localhost:${PORT} (model: ${MODEL})`);
+  const claudeVia = process.env.ANTHROPIC_API_KEY ? 'direct Anthropic API (temporary — see client init)' : 'Vertex AI';
+  console.log(`[blayne] API on http://localhost:${PORT} (model: ${MODEL}, via ${claudeVia})`);
   console.log(
     `[blayne] skills served from gs://${process.env.BLAYNE_SKILLS_BUCKET ?? 'blayne-skills-bbip'}/blayne_skills/ (fetched on first use per skill, cached after; missing ones fall back to the base identity prompt)`,
   );

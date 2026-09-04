@@ -20,16 +20,17 @@
     "test": "node --test"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.123.0",
     "@anthropic-ai/vertex-sdk": "^0.19.5",
     "@fontsource-variable/inter": "^5.3.0",
     "@fontsource-variable/montserrat": "^5.3.0",
     "@google-cloud/storage": "^7.14.0",
-    "google-auth-library": "^9.14.0",
     "@react-three/drei": "^10.0.0",
     "@react-three/fiber": "^9.0.0",
     "@react-three/postprocessing": "^3.0.0",
     "@supabase/supabase-js": "^2.112.3",
     "express": "^5.2.1",
+    "google-auth-library": "^9.14.0",
     "helmet": "^8.3.0",
     "multer": "^2.2.0",
     "react": "^19.0.0",

@@ -261,23 +261,12 @@ create table if not exists public.organizations (
   created_at  timestamptz default now() not null
 );
 
-alter table public.organizations enable row level security;
-
-drop policy if exists "organizations_service_role_all" on public.organizations;
-create policy "organizations_service_role_all" on public.organizations
-  for all to service_role using (true) with check (true);
-
-drop policy if exists "organizations_select_member" on public.organizations;
-create policy "organizations_select_member" on public.organizations
-  for select using (
-    exists (
-      select 1 from public.organization_members m
-      where m.org_id = organizations.id and m.user_id = auth.uid()
-    )
-  );
-
-grant select on public.organizations to authenticated;
-
+-- organization_members is created before organizations' own RLS policies
+-- below, not after — "organizations_select_member" references it in a
+-- USING clause, and Postgres resolves that reference at CREATE POLICY time
+-- (unlike a view, it isn't deferred), so the referenced table must already
+-- exist or the CREATE POLICY itself fails with "relation ... does not
+-- exist".
 create table if not exists public.organization_members (
   org_id      uuid not null references public.organizations (id) on delete cascade,
   user_id     uuid not null references auth.users (id) on delete cascade,
@@ -297,6 +286,23 @@ create policy "organization_members_select_own" on public.organization_members
   for select using (user_id = auth.uid());
 
 grant select on public.organization_members to authenticated;
+
+alter table public.organizations enable row level security;
+
+drop policy if exists "organizations_service_role_all" on public.organizations;
+create policy "organizations_service_role_all" on public.organizations
+  for all to service_role using (true) with check (true);
+
+drop policy if exists "organizations_select_member" on public.organizations;
+create policy "organizations_select_member" on public.organizations
+  for select using (
+    exists (
+      select 1 from public.organization_members m
+      where m.org_id = organizations.id and m.user_id = auth.uid()
+    )
+  );
+
+grant select on public.organizations to authenticated;
 
 -- Backfill: every profiles row that predates this migration gets the same
 -- "personal org" treatment the signup trigger now gives new accounts, so no

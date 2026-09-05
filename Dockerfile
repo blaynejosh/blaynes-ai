@@ -32,6 +32,7 @@ COPY package*.json ./
 RUN npm ci --omit=dev
 
 COPY server ./server
+COPY brand-kit.schema.json document-ir.schema.json ./
 COPY --from=builder /app/dist ./dist
 
 # Cloud Run injects PORT at runtime (usually 8080); server/index.js already

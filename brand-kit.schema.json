@@ -1,0 +1,241 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://blaynes.ai/schemas/brand-kit-v1.json",
+  "title": "BLAYNE'S AI Tenant Brand Kit",
+  "description": "The per-tenant design system. Every value is either confirmed by the user or explicitly marked unconfirmed. The renderer reads only from here; the language model never selects a colour, font, size or logo.",
+  "type": "object",
+  "required": ["kit_id", "tenant_id", "version", "status", "identity", "colors", "typography", "logos"],
+  "properties": {
+    "kit_id": { "type": "string" },
+    "tenant_id": { "type": "string" },
+    "version": { "type": "integer", "minimum": 1 },
+    "status": {
+      "type": "string",
+      "enum": ["draft", "awaiting_review", "active", "archived"],
+      "description": "Only an 'active' kit may be used for generation. A kit moves from awaiting_review to active only by explicit user confirmation."
+    },
+    "created_at": { "type": "string", "format": "date-time" },
+    "confirmed_at": { "type": "string", "format": "date-time" },
+    "confirmed_by": { "type": "string" },
+
+    "identity": {
+      "type": "object",
+      "required": ["legal_name"],
+      "properties": {
+        "legal_name": { "type": "string" },
+        "display_name": { "type": "string" },
+        "tagline": { "type": "string" },
+        "website": { "type": "string" },
+        "industry": { "type": "string" },
+        "hq_location": { "type": "string" },
+        "markets": { "type": "array", "items": { "type": "string" } },
+        "about": { "type": "string", "description": "Short boilerplate for cover pages and back matter" },
+        "registration_details": { "type": "string", "description": "RC number, TIN or equivalent, for documents that require it" }
+      }
+    },
+
+    "colors": {
+      "type": "object",
+      "description": "Roles, not a swatch list. The renderer resolves every colour through a role so a brand change never requires touching a template.",
+      "required": ["primary", "text", "surface"],
+      "properties": {
+        "primary": { "$ref": "#/$defs/color" },
+        "secondary": { "$ref": "#/$defs/color" },
+        "accents": { "type": "array", "maxItems": 6, "items": { "$ref": "#/$defs/color" } },
+        "text": {
+          "type": "object",
+          "properties": {
+            "heading": { "$ref": "#/$defs/color" },
+            "body": { "$ref": "#/$defs/color" },
+            "muted": { "$ref": "#/$defs/color" },
+            "on_dark": { "$ref": "#/$defs/color" }
+          }
+        },
+        "surface": {
+          "type": "object",
+          "properties": {
+            "page": { "$ref": "#/$defs/color" },
+            "dark": { "$ref": "#/$defs/color" },
+            "tint": { "$ref": "#/$defs/color" },
+            "hairline": { "$ref": "#/$defs/color" }
+          }
+        },
+        "semantic": {
+          "type": "object",
+          "properties": {
+            "positive": { "$ref": "#/$defs/color" },
+            "caution": { "$ref": "#/$defs/color" },
+            "negative": { "$ref": "#/$defs/color" }
+          }
+        },
+        "chart_categorical": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 10,
+          "items": { "$ref": "#/$defs/color" },
+          "description": "Ordered categorical series palette. Must pass the contrast checks in the renderer's palette validator before the kit can go active."
+        },
+        "chart_sequential": { "type": "array", "items": { "$ref": "#/$defs/color" } }
+      }
+    },
+
+    "typography": {
+      "type": "object",
+      "required": ["display", "body"],
+      "properties": {
+        "display": { "$ref": "#/$defs/typeface" },
+        "heading": { "$ref": "#/$defs/typeface" },
+        "body": { "$ref": "#/$defs/typeface" },
+        "mono": { "$ref": "#/$defs/typeface" },
+        "scale": {
+          "type": "object",
+          "description": "Point sizes. Defaults are supplied by the renderer where the tenant has not specified.",
+          "properties": {
+            "cover_title": { "type": "number" },
+            "part_title": { "type": "number" },
+            "h1": { "type": "number" },
+            "h2": { "type": "number" },
+            "h3": { "type": "number" },
+            "body": { "type": "number" },
+            "small": { "type": "number" },
+            "caption": { "type": "number" }
+          }
+        },
+        "rules": {
+          "type": "object",
+          "properties": {
+            "display_never_bold": { "type": "boolean", "description": "True where the display face is already heavy and synthetic bold would smear it" },
+            "line_height_body": { "type": "number" },
+            "paragraph_spacing": { "type": "number" },
+            "letterspacing_kicker": { "type": "number" }
+          }
+        }
+      }
+    },
+
+    "logos": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["asset_id", "variant", "format"],
+        "properties": {
+          "asset_id": { "type": "string" },
+          "variant": { "type": "string", "enum": ["primary", "on_dark", "on_light", "monochrome", "icon", "wordmark", "high_res"] },
+          "format": { "type": "string", "enum": ["png", "svg", "jpg"] },
+          "width_px": { "type": "integer" },
+          "height_px": { "type": "integer" },
+          "has_transparency": { "type": "boolean" },
+          "min_width_mm": { "type": "number" },
+          "clear_space_multiple": { "type": "number", "description": "Clear space as a multiple of the mark's own height. Enforced by the renderer." }
+        }
+      }
+    },
+
+    "layout": {
+      "type": "object",
+      "properties": {
+        "page_size": { "type": "string", "enum": ["A4", "LETTER"] },
+        "margins_mm": {
+          "type": "object",
+          "properties": { "top": { "type": "number" }, "right": { "type": "number" }, "bottom": { "type": "number" }, "left": { "type": "number" } }
+        },
+        "cover_style": { "type": "string", "enum": ["full_bleed_dark", "image_led", "minimal_light", "split"] },
+        "header_style": { "type": "string", "enum": ["logo_left_title_right", "logo_only", "none"] },
+        "footer_style": { "type": "string", "enum": ["dark_bar_with_page_badge", "hairline_rule", "none"] },
+        "section_dividers": { "type": "boolean" },
+        "table_style": { "type": "string", "enum": ["dark_header_zebra", "light_header_hairline", "minimal"] },
+        "accent_bar": { "type": "boolean", "description": "Multi-colour accent bar on covers and dividers" }
+      }
+    },
+
+    "iconography": {
+      "type": "object",
+      "properties": {
+        "style": { "type": "string", "enum": ["line", "solid", "duotone", "none"] },
+        "stroke_weight": { "type": "number" },
+        "color_role": { "type": "string" },
+        "custom_set_asset_ids": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+
+    "voice": {
+      "type": "object",
+      "description": "Extracted from the brand guideline and the tenant's own past documents. Governs the writing layer, not the visual layer.",
+      "properties": {
+        "tone": { "type": "array", "items": { "type": "string" } },
+        "person": { "type": "string", "enum": ["first_plural", "first_singular", "third"] },
+        "spelling": { "type": "string", "enum": ["en-GB", "en-US", "en-NG"] },
+        "banned_words": { "type": "array", "items": { "type": "string" } },
+        "banned_punctuation": { "type": "array", "items": { "type": "string" }, "description": "e.g. em dash" },
+        "required_phrases": { "type": "array", "items": { "type": "string" } },
+        "reading_level": { "type": "string" },
+        "sample_document_asset_ids": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+
+    "boilerplate": {
+      "type": "object",
+      "properties": {
+        "confidentiality_line": { "type": "string" },
+        "footer_text": { "type": "string" },
+        "legal_disclaimer": { "type": "string" },
+        "copyright_line": { "type": "string" },
+        "contact_block": { "type": "string" }
+      }
+    },
+
+    "provenance": {
+      "type": "object",
+      "description": "Every extracted field records where it came from and whether a human confirmed it. Nothing marked unconfirmed may be used in a generated document.",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "source_asset_id": { "type": "string" },
+          "source_locator": { "type": "string", "description": "page number, slide number or coordinates" },
+          "method": { "type": "string", "enum": ["user_entered", "extracted_llm", "extracted_deterministic", "system_default"] },
+          "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+          "confirmed": { "type": "boolean" }
+        }
+      }
+    }
+  },
+
+  "$defs": {
+    "color": {
+      "type": "object",
+      "required": ["hex"],
+      "properties": {
+        "hex": { "type": "string", "pattern": "^#?[0-9A-Fa-f]{6}$" },
+        "name": { "type": "string" },
+        "usage_note": { "type": "string" }
+      }
+    },
+    "typeface": {
+      "type": "object",
+      "required": ["family"],
+      "properties": {
+        "family": { "type": "string" },
+        "fallback_stack": { "type": "array", "items": { "type": "string" } },
+        "font_files": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["asset_id", "weight", "style", "format"],
+            "properties": {
+              "asset_id": { "type": "string" },
+              "weight": { "type": "integer" },
+              "style": { "type": "string", "enum": ["normal", "italic"] },
+              "format": { "type": "string", "enum": ["ttf", "otf", "woff2", "woff"] },
+              "internal_family_name": { "type": "string", "description": "Read from the font's own name table, not from the filename. This is the string the renderer must use." },
+              "converted_from": { "type": "string" },
+              "license_attested": { "type": "boolean", "description": "The tenant has confirmed they hold a licence permitting server-side rendering and, where applicable, embedding. A font file cannot be used until this is true." },
+              "license_type": { "type": "string" },
+              "embedding_permitted": { "type": "boolean" }
+            }
+          }
+        }
+      }
+    }
+  }
+}

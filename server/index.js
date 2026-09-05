@@ -29,8 +29,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { AnthropicVertex } from '@anthropic-ai/vertex-sdk';
-import Anthropic from '@anthropic-ai/sdk';
+import { claudeClient as client, MODEL, claudeVia } from './claudeClient.js';
 import { buildSystem } from './blaynePrompt.js';
 import { loadSkills } from './skillStorage.js';
 import { storeUserFile, readUserFile, deleteUserFile } from './uploadStorage.js';
@@ -41,12 +40,16 @@ import { getAliasOverrides } from './catalogue/aliasOverrides.js';
 import { checkFrequencyCap, recordShown } from './catalogue/routingState.js';
 import { logRoutingDecision, logCtaClick, logGuardrailCheck } from './catalogue/events.js';
 import { checkTurn, isDisclosureRequired } from './guardrails.js';
+import brandKitRouter from './brandKit/routes.js';
+import { resolveOrgForUser } from './brandKit/tenant.js';
+import { getActiveBrandKit } from './brandKit/manualKit.js';
+import { enqueueDocument } from './brandKit/documents/jobs.js';
+import { DOC_TYPES } from './brandKit/documents/assembleIr.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const distDir = path.join(here, '..', 'dist');
 
 const PORT = Number(process.env.PORT ?? 8787);
-const MODEL = process.env.BLAYNE_MODEL ?? 'claude-opus-5';
 
 /** Where the CTA redirect (see /api/cta/:serviceId) sends a clicked recommendation. */
 const PUBLIC_ORIGIN = process.env.PUBLIC_ORIGIN ?? 'https://blaynes.ai';
@@ -200,25 +203,37 @@ const SEARCH_SERVICES_TOOL = {
   },
 };
 
-/*
- * Auth is Application Default Credentials — gcloud auth application-default
- * login locally, or the runtime service account on Cloud Run — same as the
- * @google-cloud/storage client in skillStorage.js/uploadStorage.js. No API
- * key. Requires the Claude models to be enabled for this project in Vertex
- * AI Model Garden.
- *
- * TEMPORARY: while Vertex AI quota on this project is still too low for full
- * app testing, setting ANTHROPIC_API_KEY switches to the direct Anthropic
- * API instead (same model IDs, same messages.stream() surface — no other
- * code here changes). Remove this branch and the ANTHROPIC_API_KEY read once
- * Vertex quota is raised; AnthropicVertex should stay the only path.
+/**
+ * Phase 4's Document Engine entry point from chat. Call this once the
+ * client and Blayne have actually agreed on what the document should cover
+ * — it starts a real background job (a full document is a genuine model
+ * call plus a real render, minutes not seconds), not an instant result, so
+ * the tool_result comes back immediately with just a job id and status;
+ * tell the client it's being put together and they'll get it shortly
+ * rather than waiting on this turn for the file itself. Requires the
+ * client's organization to already have an active Brand Kit (Account menu
+ * -> Brand Kit) — if resolveOrgForUser/getActiveBrandKit finds none, the
+ * tool_result says so and the model should relay that instead of retrying.
  */
-const client = process.env.ANTHROPIC_API_KEY
-  ? new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
-  : new AnthropicVertex({
-      projectId: process.env.ANTHROPIC_VERTEX_PROJECT_ID,
-      region: process.env.CLOUD_ML_REGION ?? 'global',
-    });
+const GENERATE_DOCUMENT_TOOL = {
+  name: 'generate_document',
+  description:
+    "Start generating a real, branded document (a strategy report, proposal, one-pager, etc.) for the client through Blayne's Consulting's Document Engine. This begins a background job — it does not return the file itself. Only call this once you and the client have actually agreed on scope, audience, and what the document needs to cover; pack everything relevant already established in this conversation into `brief` so the writer never has to re-ask the client something they already told you.",
+  input_schema: {
+    type: 'object',
+    required: ['doc_type', 'title', 'format', 'brief'],
+    properties: {
+      doc_type: { type: 'string', enum: DOC_TYPES, description: 'What kind of document this is.' },
+      title: { type: 'string', description: 'The working title.' },
+      format: { type: 'string', enum: ['pdf', 'docx'], description: 'Which file the client wants.' },
+      brief: {
+        type: 'string',
+        description:
+          'Everything the writer needs: the audience and the decision this document supports, its scope, and every fact, figure, or constraint already established in this conversation — write it out, do not just say "see above".',
+      },
+    },
+  },
+};
 
 /** Only role/content survives; anything else the client sent is discarded. */
 function sanitize(messages) {
@@ -556,6 +571,17 @@ app.delete('/api/brand-assets/:id', requireAuth, async (req, res) => {
   res.json({ ok: true });
 });
 
+/*
+ * Brand Kit / Document Engine — a separate, org-scoped feature from the
+ * brand-assets routes above (which stay as-is: per-user, chat-context-only
+ * attachments). requireAuth here is the same gate as everywhere else;
+ * brandKitRouter's own requireOrg (server/brandKit/tenant.js) resolves the
+ * organization on top of it. See supabase/schema.sql's "organizations" and
+ * "brand_kits" comments for why this needed a tenant boundary the rest of
+ * the app doesn't have yet.
+ */
+app.use('/api/brand-kit', requireAuth, brandKitRouter);
+
 app.post('/api/chat', requireAuth, async (req, res) => {
   const messages = sanitize(req.body?.messages);
   if (!messages.length) return res.status(400).json({ error: 'No messages provided.' });
@@ -614,7 +640,7 @@ app.post('/api/chat', requireAuth, async (req, res) => {
   });
   const send = (payload) => res.write(`data: ${JSON.stringify(payload)}\n\n`);
 
-  const tools = [SKILL_TOOL, SAVE_CONTEXT_TOOL, SEARCH_SERVICES_TOOL];
+  const tools = [SKILL_TOOL, SAVE_CONTEXT_TOOL, SEARCH_SERVICES_TOOL, GENERATE_DOCUMENT_TOOL];
 
   const request = {
     model: MODEL,
@@ -756,6 +782,56 @@ app.post('/api/chat', requireAuth, async (req, res) => {
                     type: 'tool_result',
                     tool_use_id: block.id,
                     content: 'Service lookup failed — answer without a Blayne\'s Consulting recommendation this turn rather than guessing.',
+                    is_error: true,
+                  };
+                }
+              }
+
+              if (block.name === 'generate_document') {
+                try {
+                  const membership = await resolveOrgForUser(req.userId);
+                  if (!membership) {
+                    return {
+                      type: 'tool_result',
+                      tool_use_id: block.id,
+                      content: "This account has no organization on file yet — tell the client the Document Engine isn't available for them right now.",
+                      is_error: true,
+                    };
+                  }
+                  const brandKit = await getActiveBrandKit(membership.orgId);
+                  if (!brandKit) {
+                    return {
+                      type: 'tool_result',
+                      tool_use_id: block.id,
+                      content:
+                        'This organization has no active Brand Kit yet. Tell the client to set one up first (Account menu -> Brand Kit) — a document cannot be generated without one.',
+                      is_error: true,
+                    };
+                  }
+                  const job = await enqueueDocument({
+                    orgId: membership.orgId,
+                    userId: req.userId,
+                    brandKitId: brandKit.id,
+                    docType: String(block.input?.doc_type ?? ''),
+                    title: String(block.input?.title ?? ''),
+                    format: block.input?.format === 'docx' ? 'docx' : 'pdf',
+                    brief: String(block.input?.brief ?? ''),
+                  });
+                  return {
+                    type: 'tool_result',
+                    tool_use_id: block.id,
+                    content: JSON.stringify({
+                      job_id: job.id,
+                      status: job.status,
+                      message: 'Generation started in the background — tell the client it will take a few minutes.',
+                    }),
+                  };
+                } catch (err) {
+                  console.error('[blayne] generate_document failed:', err.message);
+                  return {
+                    type: 'tool_result',
+                    tool_use_id: block.id,
+                    content: "Could not start generating that document — tell the client something went wrong and to try again shortly.",
                     is_error: true,
                   };
                 }
@@ -916,11 +992,15 @@ if (fs.existsSync(distDir)) {
     '/terms',
     '/privacy',
     '/how-we-work',
+    '/brand-kit',
+    '/documents',
   ]);
   // The four Product Map routes (see src/data/productMap.js MAP_SECTIONS),
   // matched by src/App.jsx's single "/:category" route.
   const KNOWN_CATEGORIES = new Set(['features', 'job-roles', 'departments', 'startups']);
-  const isKnownPath = (p) => KNOWN_STATIC_PATHS.has(p) || KNOWN_CATEGORIES.has(p.slice(1));
+  // /brand-kit/review/:id — the one nested dynamic route in the app so far,
+  // so a prefix check rather than another flat Set entry.
+  const isKnownPath = (p) => KNOWN_STATIC_PATHS.has(p) || KNOWN_CATEGORIES.has(p.slice(1)) || /^\/brand-kit\/review\/[^/]+$/.test(p);
 
   const renderIndexHtml = (nonce, meta) =>
     indexHtmlTemplate
@@ -978,7 +1058,6 @@ try {
 }
 
 app.listen(PORT, () => {
-  const claudeVia = process.env.ANTHROPIC_API_KEY ? 'direct Anthropic API (temporary — see client init)' : 'Vertex AI';
   console.log(`[blayne] API on http://localhost:${PORT} (model: ${MODEL}, via ${claudeVia})`);
   console.log(
     `[blayne] skills served from gs://${process.env.BLAYNE_SKILLS_BUCKET ?? 'blayne-skills-bbip'}/blayne_skills/ (fetched on first use per skill, cached after; missing ones fall back to the base identity prompt)`,

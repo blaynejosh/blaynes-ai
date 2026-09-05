@@ -1,0 +1,560 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://blaynes.ai/schemas/document-ir-v1.json",
+  "title": "BLAYNE'S AI Document Intermediate Representation",
+  "description": "The contract between the language model and the renderer. The model emits this and nothing else. It contains no colours, fonts, sizes, margins or positions: every visual decision is resolved by the renderer from the tenant's active Brand Kit. This is what makes brand fidelity a property of the system rather than a hope about the prompt.",
+  "type": "object",
+  "required": ["ir_version", "meta", "blocks"],
+  "properties": {
+    "ir_version": { "const": "1.0" },
+    "meta": {
+      "type": "object",
+      "required": ["title", "doc_type", "audience"],
+      "properties": {
+        "title": { "type": "string" },
+        "subtitle": { "type": "string" },
+        "doc_type": {
+          "type": "string",
+          "enum": ["strategy_report", "business_case", "proposal", "sow", "market_study", "board_pack", "investment_memo", "company_profile", "policy_or_sop", "regulatory_brief", "whitepaper", "one_pager", "deck"]
+        },
+        "audience": { "type": "string", "description": "Who reads this and what they must decide" },
+        "governing_thought": { "type": "string", "description": "The single sentence the whole document exists to support. Required. If it cannot be written, the outline is not ready to render." },
+        "prepared_for": { "type": "string" },
+        "prepared_by": { "type": "string" },
+        "date": { "type": "string" },
+        "classification": { "type": "string" },
+        "language": { "type": "string", "default": "en" }
+      }
+    },
+    "blocks": { "type": "array", "items": { "$ref": "#/$defs/block" } },
+    "sources": {
+      "type": "array",
+      "description": "Every source cited anywhere in the document, referenced by id from claims and exhibits.",
+      "items": {
+        "type": "object",
+        "required": ["id", "title", "accessed"],
+        "properties": {
+          "id": { "type": "string" },
+          "title": { "type": "string" },
+          "publisher": { "type": "string" },
+          "url": { "type": "string" },
+          "published": { "type": "string" },
+          "accessed": { "type": "string" },
+          "source_type": { "type": "string", "enum": ["primary_regulator", "official_statistics", "company_filing", "reputable_media", "industry_report", "user_supplied", "internal_estimate"] }
+        }
+      }
+    },
+    "assumptions": {
+      "type": "array",
+      "description": "Rendered as an explicit assumptions register. Any number in the document that is modelled rather than sourced must trace to an entry here.",
+      "items": {
+        "type": "object",
+        "required": ["id", "statement", "basis", "sensitivity"],
+        "properties": {
+          "id": { "type": "string" },
+          "statement": { "type": "string" },
+          "basis": { "type": "string" },
+          "sensitivity": { "type": "string", "description": "What changes in the conclusion if this assumption is wrong" }
+        }
+      }
+    }
+  },
+
+  "$defs": {
+    "block": {
+      "oneOf": [
+        { "$ref": "#/$defs/cover" },
+        { "$ref": "#/$defs/toc" },
+        { "$ref": "#/$defs/part_divider" },
+        { "$ref": "#/$defs/heading" },
+        { "$ref": "#/$defs/paragraph" },
+        { "$ref": "#/$defs/list" },
+        { "$ref": "#/$defs/callout" },
+        { "$ref": "#/$defs/exhibit" },
+        { "$ref": "#/$defs/page_break" },
+        { "$ref": "#/$defs/spacer" }
+      ]
+    },
+
+    "cover": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": { "const": "cover" },
+        "kicker": { "type": "string" },
+        "title": { "type": "string" },
+        "emphasis_word": { "type": "string", "description": "Optional single word rendered in the accent colour" },
+        "subtitle": { "type": "string" },
+        "footer": { "type": "string" }
+      }
+    },
+
+    "toc": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": { "const": "toc" },
+        "style": { "type": "string", "enum": ["numbered", "annotated"], "default": "annotated" }
+      }
+    },
+
+    "part_divider": {
+      "type": "object",
+      "required": ["type", "title"],
+      "properties": {
+        "type": { "const": "part_divider" },
+        "part_label": { "type": "string" },
+        "title": { "type": "string" },
+        "blurb": { "type": "string" }
+      }
+    },
+
+    "heading": {
+      "type": "object",
+      "required": ["type", "level", "text"],
+      "properties": {
+        "type": { "const": "heading" },
+        "level": { "type": "integer", "minimum": 1, "maximum": 3 },
+        "number": { "type": "string" },
+        "text": {
+          "type": "string",
+          "description": "For level 1 and 2 in analytical documents this must be an action title: a statement of the finding, not a topic label. 'Regulatory cost will rise 40% by Q3' rather than 'Regulatory environment'."
+        }
+      }
+    },
+
+    "paragraph": {
+      "type": "object",
+      "required": ["type", "text"],
+      "properties": {
+        "type": { "const": "paragraph" },
+        "text": { "type": "string" },
+        "emphasis": { "type": "string", "enum": ["normal", "lead", "small"], "default": "normal" },
+        "source_ids": { "type": "array", "items": { "type": "string" } },
+        "assumption_ids": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+
+    "list": {
+      "type": "object",
+      "required": ["type", "items"],
+      "properties": {
+        "type": { "const": "list" },
+        "style": { "type": "string", "enum": ["bullet", "numbered", "labelled"], "default": "bullet" },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["text"],
+            "properties": {
+              "label": { "type": "string" },
+              "text": { "type": "string" },
+              "source_ids": { "type": "array", "items": { "type": "string" } }
+            }
+          }
+        }
+      }
+    },
+
+    "callout": {
+      "type": "object",
+      "required": ["type", "body"],
+      "properties": {
+        "type": { "const": "callout" },
+        "variant": { "type": "string", "enum": ["key_takeaway", "warning", "note", "definition", "recommendation"], "default": "key_takeaway" },
+        "label": { "type": "string" },
+        "body": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+
+    "exhibit": {
+      "type": "object",
+      "description": "Every visual element is wrapped in an exhibit. The wrapper enforces the two things that separate a consulting exhibit from decoration: an action title that states the finding, and a source line. Neither is optional.",
+      "required": ["type", "action_title", "content"],
+      "properties": {
+        "type": { "const": "exhibit" },
+        "exhibit_number": { "type": "string" },
+        "action_title": { "type": "string", "description": "States what the exhibit proves, not what it shows" },
+        "so_what": { "type": "string", "description": "One line on the implication. Rendered beneath the exhibit." },
+        "source_ids": { "type": "array", "items": { "type": "string" } },
+        "assumption_ids": { "type": "array", "items": { "type": "string" } },
+        "content": { "$ref": "#/$defs/exhibit_content" }
+      }
+    },
+
+    "exhibit_content": {
+      "oneOf": [
+        { "$ref": "#/$defs/table" },
+        { "$ref": "#/$defs/kpi_row" },
+        { "$ref": "#/$defs/card_grid" },
+        { "$ref": "#/$defs/numbered_phases" },
+        { "$ref": "#/$defs/process_flow" },
+        { "$ref": "#/$defs/timeline" },
+        { "$ref": "#/$defs/roadmap" },
+        { "$ref": "#/$defs/matrix_2x2" },
+        { "$ref": "#/$defs/comparison_matrix" },
+        { "$ref": "#/$defs/decision_tree" },
+        { "$ref": "#/$defs/org_chart" },
+        { "$ref": "#/$defs/journey_map" },
+        { "$ref": "#/$defs/chart" },
+        { "$ref": "#/$defs/image" },
+        { "$ref": "#/$defs/quote" }
+      ]
+    },
+
+    "table": {
+      "type": "object",
+      "required": ["kind", "columns", "rows"],
+      "properties": {
+        "kind": { "const": "table" },
+        "columns": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["header"],
+            "properties": {
+              "header": { "type": "string" },
+              "align": { "type": "string", "enum": ["left", "center", "right"], "default": "left" },
+              "width_weight": { "type": "number", "description": "Relative weight; the renderer converts to absolute widths within the content area" },
+              "format": { "type": "string", "enum": ["text", "number", "currency", "percent", "date", "status"] }
+            }
+          }
+        },
+        "rows": { "type": "array", "items": { "type": "array", "items": { "type": "string" } } },
+        "emphasis_column": { "type": "integer" },
+        "total_row": { "type": "boolean" }
+      }
+    },
+
+    "kpi_row": {
+      "type": "object",
+      "required": ["kind", "items"],
+      "properties": {
+        "kind": { "const": "kpi_row" },
+        "items": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 5,
+          "items": {
+            "type": "object",
+            "required": ["value", "label"],
+            "properties": {
+              "value": { "type": "string" },
+              "label": { "type": "string" },
+              "delta": { "type": "string" },
+              "direction": { "type": "string", "enum": ["up_good", "up_bad", "down_good", "down_bad", "neutral"] },
+              "source_ids": { "type": "array", "items": { "type": "string" } }
+            }
+          }
+        }
+      }
+    },
+
+    "card_grid": {
+      "type": "object",
+      "required": ["kind", "cards"],
+      "properties": {
+        "kind": { "const": "card_grid" },
+        "columns": { "type": "integer", "minimum": 2, "maximum": 4, "default": 2 },
+        "cards": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["title", "text"],
+            "properties": {
+              "title": { "type": "string" },
+              "text": { "type": "string" },
+              "icon": { "type": "string", "description": "Semantic icon name from the renderer's set, e.g. 'speed', 'risk', 'growth'. Never a file path." }
+            }
+          }
+        }
+      }
+    },
+
+    "numbered_phases": {
+      "type": "object",
+      "required": ["kind", "phases"],
+      "properties": {
+        "kind": { "const": "numbered_phases" },
+        "phases": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["numeral", "title"],
+            "properties": {
+              "numeral": { "type": "string" },
+              "title": { "type": "string" },
+              "subtitle": { "type": "string" },
+              "body": { "type": "array", "items": { "type": "string" } }
+            }
+          }
+        }
+      }
+    },
+
+    "process_flow": {
+      "type": "object",
+      "required": ["kind", "steps"],
+      "properties": {
+        "kind": { "const": "process_flow" },
+        "orientation": { "type": "string", "enum": ["horizontal", "vertical"], "default": "horizontal" },
+        "steps": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 7,
+          "items": {
+            "type": "object",
+            "required": ["label"],
+            "properties": {
+              "label": { "type": "string" },
+              "detail": { "type": "string" },
+              "terminal": { "type": "boolean" }
+            }
+          }
+        }
+      }
+    },
+
+    "timeline": {
+      "type": "object",
+      "required": ["kind", "events"],
+      "properties": {
+        "kind": { "const": "timeline" },
+        "events": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["when", "label"],
+            "properties": {
+              "when": { "type": "string" },
+              "label": { "type": "string" },
+              "detail": { "type": "string" },
+              "milestone": { "type": "boolean" }
+            }
+          }
+        }
+      }
+    },
+
+    "roadmap": {
+      "type": "object",
+      "required": ["kind", "tracks"],
+      "properties": {
+        "kind": { "const": "roadmap" },
+        "periods": { "type": "array", "items": { "type": "string" } },
+        "tracks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name", "items"],
+            "properties": {
+              "name": { "type": "string" },
+              "items": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": ["label", "start_period", "end_period"],
+                  "properties": {
+                    "label": { "type": "string" },
+                    "start_period": { "type": "integer" },
+                    "end_period": { "type": "integer" },
+                    "status": { "type": "string", "enum": ["planned", "in_progress", "done", "at_risk"] }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+
+    "matrix_2x2": {
+      "type": "object",
+      "required": ["kind", "x_axis", "y_axis", "items"],
+      "properties": {
+        "kind": { "const": "matrix_2x2" },
+        "x_axis": { "type": "object", "properties": { "label": { "type": "string" }, "low": { "type": "string" }, "high": { "type": "string" } } },
+        "y_axis": { "type": "object", "properties": { "label": { "type": "string" }, "low": { "type": "string" }, "high": { "type": "string" } } },
+        "quadrant_labels": { "type": "array", "maxItems": 4, "items": { "type": "string" } },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["label", "x", "y"],
+            "properties": {
+              "label": { "type": "string" },
+              "x": { "type": "number", "minimum": 0, "maximum": 1 },
+              "y": { "type": "number", "minimum": 0, "maximum": 1 },
+              "highlight": { "type": "boolean" }
+            }
+          }
+        }
+      }
+    },
+
+    "comparison_matrix": {
+      "type": "object",
+      "required": ["kind", "options", "criteria", "scores"],
+      "properties": {
+        "kind": { "const": "comparison_matrix" },
+        "options": { "type": "array", "items": { "type": "string" } },
+        "criteria": { "type": "array", "items": { "type": "string" } },
+        "scores": {
+          "type": "array",
+          "description": "criteria x options grid",
+          "items": { "type": "array", "items": { "type": "string", "enum": ["strong", "adequate", "weak", "none", "unknown"] } }
+        },
+        "notes": { "type": "array", "items": { "type": "string" } },
+        "recommended_option_index": { "type": "integer" }
+      }
+    },
+
+    "decision_tree": {
+      "type": "object",
+      "required": ["kind", "root"],
+      "properties": {
+        "kind": { "const": "decision_tree" },
+        "root": { "$ref": "#/$defs/decision_node" }
+      }
+    },
+
+    "decision_node": {
+      "type": "object",
+      "required": ["question_or_outcome"],
+      "properties": {
+        "question_or_outcome": { "type": "string" },
+        "is_outcome": { "type": "boolean" },
+        "branches": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["condition", "node"],
+            "properties": {
+              "condition": { "type": "string" },
+              "node": { "$ref": "#/$defs/decision_node" }
+            }
+          }
+        }
+      }
+    },
+
+    "org_chart": {
+      "type": "object",
+      "required": ["kind", "root"],
+      "properties": {
+        "kind": { "const": "org_chart" },
+        "root": { "$ref": "#/$defs/org_node" }
+      }
+    },
+
+    "org_node": {
+      "type": "object",
+      "required": ["title"],
+      "properties": {
+        "title": { "type": "string" },
+        "name": { "type": "string" },
+        "note": { "type": "string" },
+        "reports": { "type": "array", "items": { "$ref": "#/$defs/org_node" } }
+      }
+    },
+
+    "journey_map": {
+      "type": "object",
+      "required": ["kind", "stages"],
+      "properties": {
+        "kind": { "const": "journey_map" },
+        "persona": { "type": "string" },
+        "lanes": { "type": "array", "items": { "type": "string" }, "description": "e.g. actions, touchpoints, emotions, pain points, opportunities" },
+        "stages": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name", "cells"],
+            "properties": {
+              "name": { "type": "string" },
+              "cells": { "type": "array", "items": { "type": "string" } },
+              "sentiment": { "type": "number", "minimum": -1, "maximum": 1 }
+            }
+          }
+        }
+      }
+    },
+
+    "chart": {
+      "type": "object",
+      "description": "A chart specification, never a rendered image. The renderer owns the palette, axes, gridlines, label placement and accessibility. The model supplies data and intent only.",
+      "required": ["kind", "chart_type", "series"],
+      "properties": {
+        "kind": { "const": "chart" },
+        "chart_type": { "type": "string", "enum": ["bar", "stacked_bar", "grouped_bar", "column", "line", "area", "pie", "donut", "scatter", "waterfall", "bullet", "heatmap", "funnel"] },
+        "x_label": { "type": "string" },
+        "y_label": { "type": "string" },
+        "unit": { "type": "string" },
+        "categories": { "type": "array", "items": { "type": "string" } },
+        "series": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name", "values"],
+            "properties": {
+              "name": { "type": "string" },
+              "values": { "type": "array", "items": { "type": ["number", "null"] } },
+              "emphasis": { "type": "boolean" }
+            }
+          }
+        },
+        "annotations": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "at_category": { "type": "string" },
+              "text": { "type": "string" }
+            }
+          }
+        },
+        "is_estimate": { "type": "boolean", "description": "When true the renderer applies the estimate treatment and adds the estimate label. Modelled figures must never render as if they were measured." }
+      }
+    },
+
+    "image": {
+      "type": "object",
+      "required": ["kind", "asset_id"],
+      "properties": {
+        "kind": { "const": "image" },
+        "asset_id": { "type": "string", "description": "Must resolve to an asset owned by this tenant. The renderer rejects any other reference." },
+        "alt": { "type": "string" },
+        "caption": { "type": "string" },
+        "width": { "type": "string", "enum": ["full", "half", "third"], "default": "full" },
+        "origin": { "type": "string", "enum": ["user_upload", "generated", "licensed_stock"], "description": "Generated images carry a visible generated-image label in the caption" }
+      }
+    },
+
+    "quote": {
+      "type": "object",
+      "required": ["kind", "text"],
+      "properties": {
+        "kind": { "const": "quote" },
+        "text": { "type": "string" },
+        "attribution": { "type": "string" },
+        "role": { "type": "string" },
+        "consent_recorded": { "type": "boolean", "description": "An attributed quote from a named real person cannot render without this set true" }
+      }
+    },
+
+    "page_break": {
+      "type": "object",
+      "required": ["type"],
+      "properties": { "type": { "const": "page_break" } }
+    },
+
+    "spacer": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": { "const": "spacer" },
+        "size": { "type": "string", "enum": ["s", "m", "l"], "default": "m" }
+      }
+    }
+  }
+}

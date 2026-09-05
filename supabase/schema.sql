@@ -19,6 +19,21 @@
 --   routing_events                every routing decision/CTA click/guardrail repair, for Phase 6 observability
 --   catalogue_alias_overrides     admin-tuned service aliases, editable without a deploy
 --   catalogue_alias_audit         append-only audit trail for the table above, via trigger
+--
+-- Brand Kit / Document Engine tables (see server/brandKit/, brand-kit.schema.json):
+--   organizations                 the tenant boundary — everything Brand Kit and document-related
+--                                 hangs off org_id, not user_id (see the comment above the table
+--                                 below for why this exists at all)
+--   organization_members          who belongs to which org, and their role
+--   brand_kits                    versioned per-org design systems, validated against
+--                                 brand-kit.schema.json; only one 'active' kit per org at a time
+--   brand_kit_assets              the tenant asset store brand_kits.kit_json's asset_id fields
+--                                 resolve against — logos, fonts, icon sets, palettes, guidelines,
+--                                 sample documents — distinct from brand_assets above, which is
+--                                 the older, simpler "attach a file to this chat session" feature
+--   documents                     Phase 4 — one row per document generation job (queued through
+--                                 rendered), pinned to the exact brand_kits version that will
+--                                 render it so a later brand change never rewrites history
 
 -- ---------------------------------------------------------------------------
 -- Baseline grants.
@@ -206,10 +221,226 @@ grant select on public.brand_assets to authenticated;
 -- the server (service role) so every add/remove also updates
 -- profiles.brand_kit_completed and cleans up the Cloud Storage object —
 -- a direct client delete would orphan the object in the bucket.
+--
+-- Unrelated to the brand_kits table below, despite the similar name:
+-- brand_kit_completed just means "this tester has attached at least one file
+-- to chat" — a pre-existing column from before the Brand Kit / Document
+-- Engine feature existed. Left as-is rather than renamed, since it's live
+-- product behaviour (see needsBrandAsk in server/blaynePrompt.js).
 
 -- ---------------------------------------------------------------------------
--- New signup -> profile row + signup_events row, in one transaction with the
+-- organizations / organization_members — the tenant boundary.
+--
+-- Everything before this point in the file is keyed on auth.users.id
+-- directly: one tester, one account, no concept of a company above that.
+-- The Brand Kit / Document Engine feature needs a real tenant boundary
+-- (brand assets, fonts, generated documents, and signed URLs must all be
+-- scoped to something a signed-in user can share with colleagues later, not
+-- to one login), so this is new, additive infrastructure rather than a
+-- Brand-Kit-specific table.
+--
+-- Every account gets a personal organization automatically at signup (see
+-- handle_new_user() below) so nothing about the existing beta changes for a
+-- current tester — they just now also own a one-member org. Multi-member
+-- orgs (invite a colleague) aren't built yet; the shape here (a join table
+-- with a role column) is deliberately ready for that without a schema
+-- change when it arrives.
+--
+-- No insert/update/delete policy for authenticated on either table: an org
+-- is created once, by the signup trigger, and membership changes (inviting
+-- someone) would go through the server (service role) the same way
+-- brand_assets writes do — there's no invite flow yet, so this is currently
+-- write-once from the trigger's point of view.
+-- ---------------------------------------------------------------------------
+create extension if not exists pgcrypto;
+
+create table if not exists public.organizations (
+  id          uuid primary key default gen_random_uuid(),
+  name        text not null,
+  created_by  uuid references auth.users (id) on delete set null,
+  created_at  timestamptz default now() not null
+);
+
+alter table public.organizations enable row level security;
+
+drop policy if exists "organizations_service_role_all" on public.organizations;
+create policy "organizations_service_role_all" on public.organizations
+  for all to service_role using (true) with check (true);
+
+drop policy if exists "organizations_select_member" on public.organizations;
+create policy "organizations_select_member" on public.organizations
+  for select using (
+    exists (
+      select 1 from public.organization_members m
+      where m.org_id = organizations.id and m.user_id = auth.uid()
+    )
+  );
+
+grant select on public.organizations to authenticated;
+
+create table if not exists public.organization_members (
+  org_id      uuid not null references public.organizations (id) on delete cascade,
+  user_id     uuid not null references auth.users (id) on delete cascade,
+  role        text not null default 'owner', -- 'owner' | 'admin' | 'member' — only 'owner' is ever set today
+  created_at  timestamptz default now() not null,
+  primary key (org_id, user_id)
+);
+
+alter table public.organization_members enable row level security;
+
+drop policy if exists "organization_members_service_role_all" on public.organization_members;
+create policy "organization_members_service_role_all" on public.organization_members
+  for all to service_role using (true) with check (true);
+
+drop policy if exists "organization_members_select_own" on public.organization_members;
+create policy "organization_members_select_own" on public.organization_members
+  for select using (user_id = auth.uid());
+
+grant select on public.organization_members to authenticated;
+
+-- Backfill: every profiles row that predates this migration gets the same
+-- "personal org" treatment the signup trigger now gives new accounts, so no
+-- existing tester is left without an org_id to hang a Brand Kit off. Guarded
+-- by "not exists a membership row yet" so re-running this file is a no-op
+-- for anyone already backfilled (or created after this migration first ran).
+with new_orgs as (
+  insert into public.organizations (name, created_by)
+  select coalesce(nullif(p.full_name, ''), split_part(p.email, '@', 1)) || '''s workspace', p.id
+  from public.profiles p
+  where not exists (
+    select 1 from public.organization_members m where m.user_id = p.id
+  )
+  returning id, created_by
+)
+insert into public.organization_members (org_id, user_id, role)
+select id, created_by, 'owner' from new_orgs
+on conflict (org_id, user_id) do nothing;
+
+-- ---------------------------------------------------------------------------
+-- brand_kits — versioned per-org design systems (see brand-kit.schema.json
+-- and server/brandKit/). kit_json is the full structure validated against
+-- that schema; a kit change creates a new version rather than overwriting
+-- one in place, so a document generated under version 3 keeps rendering
+-- under version 3's tokens even after version 4 goes active — see
+-- documents.brand_kit_id (Phase 4, not yet in this file).
+--
+-- Only one 'active' kit per org, enforced at the database level (the
+-- partial unique index below), not just in application code — "a Brand Kit
+-- is not usable until a human confirms it" is a correctness property, not a
+-- UI nicety, and a race between two confirm clicks should fail loudly
+-- rather than silently produce two active kits.
+--
+-- No insert/update policy for authenticated: draft creation, extraction, and
+-- the confirm step (draft -> awaiting_review -> active) all go through the
+-- server, same reasoning as brand_assets and organizations above.
+-- ---------------------------------------------------------------------------
+create table if not exists public.brand_kits (
+  id            uuid primary key default gen_random_uuid(),
+  org_id        uuid not null references public.organizations (id) on delete cascade,
+  version       int not null,
+  status        text not null default 'draft', -- 'draft' | 'awaiting_review' | 'active' | 'archived' — see brand-kit.schema.json
+  kit_json      jsonb not null,
+  created_by    uuid references auth.users (id) on delete set null,
+  created_at    timestamptz default now() not null,
+  confirmed_at  timestamptz,
+  confirmed_by  uuid references auth.users (id) on delete set null,
+  unique (org_id, version)
+);
+
+create unique index if not exists brand_kits_one_active_per_org
+  on public.brand_kits (org_id)
+  where status = 'active';
+
+alter table public.brand_kits enable row level security;
+
+drop policy if exists "brand_kits_service_role_all" on public.brand_kits;
+create policy "brand_kits_service_role_all" on public.brand_kits
+  for all to service_role using (true) with check (true);
+
+drop policy if exists "brand_kits_select_member" on public.brand_kits;
+create policy "brand_kits_select_member" on public.brand_kits
+  for select using (
+    exists (
+      select 1 from public.organization_members m
+      where m.org_id = brand_kits.org_id and m.user_id = auth.uid()
+    )
+  );
+
+grant select on public.brand_kits to authenticated;
+
+-- ---------------------------------------------------------------------------
+-- brand_kit_assets — the tenant asset store. Every asset_id referenced
+-- inside a brand_kits.kit_json (logos, font_files, custom_set_asset_ids,
+-- sample_document_asset_ids, and Document IR image blocks later) resolves
+-- against a row here. Distinct from brand_assets (see the note on that
+-- table above): that table is loose files attached to a chat session by one
+-- user; this table is the reviewed, org-scoped asset library the renderer
+-- and extraction pipeline actually read from.
+--
+-- extracted holds whatever server/brandKit/extractors/* deterministically
+-- pulled from the file at upload time (hex colours found, a font's internal
+-- family name, image dimensions/transparency, SVG stroke weight, and so
+-- on) — the draft Brand Kit's provenance map (see brand-kit.schema.json)
+-- points back at this via source_asset_id, not the other way around.
+--
+-- license_attested and its companion columns are the font-licensing gate
+-- from the brief: a font file's rows here start unattested, and
+-- server/brandKit/* must refuse to let the renderer use one until an org
+-- member has explicitly attested to holding a licence — recorded here with
+-- who and when, never inferred from the family name matching some other
+-- tenant's already-attested font.
+-- ---------------------------------------------------------------------------
+create table if not exists public.brand_kit_assets (
+  id                    uuid primary key default gen_random_uuid(),
+  org_id                uuid not null references public.organizations (id) on delete cascade,
+  kind                  text not null, -- 'guideline' | 'corporate_profile' | 'logo' | 'palette' | 'font' | 'icon_set' | 'sample_document'
+  file_name             text not null,
+  mime_type             text not null,
+  size_bytes            bigint not null,
+  storage_path          text not null,
+  page_count            int,
+  extracted             jsonb default '{}'::jsonb not null,
+  license_attested      boolean default false not null,
+  license_attested_by   uuid references auth.users (id) on delete set null,
+  license_attested_at   timestamptz,
+  license_type          text,
+  embedding_permitted   boolean,
+  virus_scan_status     text not null default 'pending', -- 'pending' | 'clean' | 'infected' | 'skipped_dev'
+  created_by            uuid references auth.users (id) on delete set null,
+  created_at            timestamptz default now() not null
+);
+
+alter table public.brand_kit_assets enable row level security;
+
+drop policy if exists "brand_kit_assets_service_role_all" on public.brand_kit_assets;
+create policy "brand_kit_assets_service_role_all" on public.brand_kit_assets
+  for all to service_role using (true) with check (true);
+
+drop policy if exists "brand_kit_assets_select_member" on public.brand_kit_assets;
+create policy "brand_kit_assets_select_member" on public.brand_kit_assets
+  for select using (
+    exists (
+      select 1 from public.organization_members m
+      where m.org_id = brand_kit_assets.org_id and m.user_id = auth.uid()
+    )
+  );
+
+grant select on public.brand_kit_assets to authenticated;
+-- No insert/update/delete for authenticated — uploads, extraction, and
+-- deletes all go through the server (service role), same reasoning as
+-- brand_assets: a direct client delete would orphan the GCS object, and a
+-- direct client write could bypass virus scanning or the license gate.
+
+-- ---------------------------------------------------------------------------
+-- New signup -> profile row + signup_events row + a personal organization
+-- (see "Brand Kit / Document Engine tables" above for why every account
+-- needs an org, not just a profile), all in one transaction with the
 -- auth.users insert. Fires regardless of which sign-in method was used.
+--
+-- The org name is a placeholder ("<name>'s workspace") — company_name isn't
+-- known yet at signup time, it's collected during onboarding. Nothing
+-- currently lets a tester rename their org; that's fine for a single-member
+-- workspace and becomes a real gap once team invites exist.
 -- ---------------------------------------------------------------------------
 create or replace function public.handle_new_user()
 returns trigger
@@ -217,6 +448,8 @@ language plpgsql
 security definer
 set search_path = public
 as $$
+declare
+  v_org_id uuid;
 begin
   insert into public.profiles (id, email, full_name)
   values (
@@ -232,6 +465,20 @@ begin
     new.email,
     coalesce(new.raw_app_meta_data ->> 'provider', 'email')
   );
+
+  insert into public.organizations (name, created_by)
+  values (
+    coalesce(
+      nullif(new.raw_user_meta_data ->> 'full_name', ''),
+      nullif(new.raw_user_meta_data ->> 'name', ''),
+      split_part(new.email, '@', 1)
+    ) || '''s workspace',
+    new.id
+  )
+  returning id into v_org_id;
+
+  insert into public.organization_members (org_id, user_id, role)
+  values (v_org_id, new.id, 'owner');
 
   return new;
 end;
@@ -430,3 +677,62 @@ begin
   where id = p_user_id;
 end;
 $$;
+
+-- ---------------------------------------------------------------------------
+-- documents — Phase 4's generation-job table (server/brandKit/documents/).
+-- One row per attempt to turn a brief into a rendered file: created
+-- 'queued' by enqueueDocument(), then walked through
+-- 'assembling' (the one model call, assembleIr.js) -> 'rendering' (the
+-- deterministic Phase 3 renderer, reused as-is) -> 'complete' or 'failed'
+-- by an in-process background job (jobs.js's processDocument()) — see that
+-- file's doc comment for why this is deliberately not yet the real "Cloud
+-- Run Jobs + Cloud Tasks" dispatch called out as undecided in
+-- Dockerfile.render and render/index.js.
+--
+-- brand_kit_id is "on delete restrict", not cascade: a document must keep
+-- pointing at the exact Brand Kit version that rendered it even after a
+-- newer version goes active (see the "Phase 4 documents will record which
+-- kit version rendered them" note on brand_kits above and on the
+-- DELETE /drafts/:id route in server/brandKit/routes.js) — restrict makes
+-- that a database-level guarantee, not just app-code discipline.
+--
+-- No insert/update/delete for authenticated: a document is created only via
+-- the generate_document chat tool or POST /api/brand-kit/documents, both of
+-- which run as the server (service role) — same reasoning as brand_kits.
+-- ---------------------------------------------------------------------------
+create table if not exists public.documents (
+  id            uuid primary key default gen_random_uuid(),
+  org_id        uuid not null references public.organizations (id) on delete cascade,
+  brand_kit_id  uuid not null references public.brand_kits (id) on delete restrict,
+  doc_type      text not null, -- one of document-ir.schema.json's meta.doc_type enum values
+  title         text not null,
+  format        text not null, -- 'pdf' | 'docx'
+  brief         text not null, -- whatever the client and Blayne worked out in chat — the model's only input besides the Brand Kit
+  status        text not null default 'queued', -- 'queued' | 'assembling' | 'rendering' | 'complete' | 'failed'
+  ir_json       jsonb,
+  storage_path  text,
+  warnings      jsonb default '[]'::jsonb not null,
+  error         text,
+  created_by    uuid references auth.users (id) on delete set null,
+  created_at    timestamptz default now() not null,
+  completed_at  timestamptz
+);
+
+create index if not exists documents_org_created_at on public.documents (org_id, created_at desc);
+
+alter table public.documents enable row level security;
+
+drop policy if exists "documents_service_role_all" on public.documents;
+create policy "documents_service_role_all" on public.documents
+  for all to service_role using (true) with check (true);
+
+drop policy if exists "documents_select_member" on public.documents;
+create policy "documents_select_member" on public.documents
+  for select using (
+    exists (
+      select 1 from public.organization_members m
+      where m.org_id = documents.org_id and m.user_id = auth.uid()
+    )
+  );
+
+grant select on public.documents to authenticated;

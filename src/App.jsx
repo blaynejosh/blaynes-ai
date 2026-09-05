@@ -13,6 +13,9 @@ const AuthCallback = lazy(() => import('./components/auth/AuthCallback.jsx'));
 const OnboardingForm = lazy(() => import('./components/auth/OnboardingForm.jsx'));
 const SafetyAddendumGate = lazy(() => import('./components/auth/SafetyAddendumGate.jsx'));
 const ChatPage = lazy(() => import('./components/ChatPage.jsx'));
+const BrandKitHome = lazy(() => import('./components/brandKit/BrandKitHome.jsx'));
+const BrandKitReview = lazy(() => import('./components/brandKit/BrandKitReview.jsx'));
+const DocumentsPage = lazy(() => import('./components/brandKit/DocumentsPage.jsx'));
 const HowWeWork = lazy(() => import('./components/HowWeWork.jsx'));
 const TermsOfUsePage = lazy(() => import('./components/legal/TermsOfUsePage.jsx'));
 const PrivacyPolicyPage = lazy(() => import('./components/legal/PrivacyPolicyPage.jsx'));
@@ -61,6 +64,44 @@ export default function App() {
                   </ProtectedRoute>
                 }
               />
+              <Route
+                path="/brand-kit"
+                element={
+                  <ProtectedRoute>
+                    <div className="min-h-svh bg-delft px-4 py-8 sm:px-8">
+                      <BrandKitHome />
+                    </div>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/brand-kit/review/:id"
+                element={
+                  <ProtectedRoute>
+                    <div className="min-h-svh bg-delft px-4 py-8 sm:px-8">
+                      <BrandKitReview />
+                    </div>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/documents"
+                element={
+                  <ProtectedRoute>
+                    <div className="min-h-svh bg-delft px-4 py-8 sm:px-8">
+                      <DocumentsPage />
+                    </div>
+                  </ProtectedRoute>
+                }
+              />
+              {/* React Router v6+ ranks a static segment ("brand-kit") above
+                  a dynamic one (":category") regardless of declaration
+                  order, so /brand-kit and /documents above and /:category
+                  below can't collide — but /:category is still the
+                  KNOWN_CATEGORIES catch-all in server/index.js's SSR meta
+                  table, which only recognizes features/job-roles/
+                  departments/startups; that table doesn't need entries for
+                  either static route for the same reason. */}
               <Route
                 path="/:category"
                 element={

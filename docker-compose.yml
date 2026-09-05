@@ -1,0 +1,28 @@
+# Local-dev-only infrastructure that isn't Google Cloud — currently just
+# clamd, for server/brandKit/virusScan.js's blocking virus-scan gate. Not
+# used in deployment (Cloud Run doesn't read this file); see the Phase 1
+# report for why clamd is a real, standalone service rather than something
+# bundled into the app's own container: uploads are refused outright until
+# CLAMD_HOST points at one, in dev or in production alike.
+#
+#   docker compose up -d clamd
+#   # first boot downloads virus definitions — takes ~15-30s before the
+#   # socket appears; `docker compose logs -f clamd` to watch it.
+#
+# Then set in .env: CLAMD_HOST=localhost (CLAMD_PORT defaults to 3310).
+#
+# CI runs the same image as a GitHub Actions service container instead of
+# via this file — see .github/workflows/ci.yml — so this compose file is
+# for local development only.
+services:
+  clamd:
+    image: clamav/clamav:stable
+    ports:
+      - '3310:3310'
+    healthcheck:
+      test: ['CMD-SHELL', 'test -S /tmp/clamd.sock']
+      interval: 5s
+      timeout: 5s
+      retries: 24
+      start_period: 10s
+    restart: unless-stopped

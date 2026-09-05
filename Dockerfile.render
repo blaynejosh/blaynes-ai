@@ -1,0 +1,47 @@
+# The Document Engine render container — Phase 3's "dedicated container
+# image with the render dependencies," separate from the main Dockerfile.
+#
+# Deliberately NOT node:22-alpine like the main web/API image: Playwright's
+# Chromium builds target glibc, not Alpine's musl, so this needs a
+# Debian-based image. node:22-slim (Debian, not Alpine) is the base;
+# `playwright install --with-deps` pulls in Chromium plus every system
+# library it needs (fonts, X11 libs, etc. — confirmed by hand: this is
+# exactly what `npx playwright install --with-deps chromium` installs via
+# apt on a Debian/Ubuntu host).
+#
+# NOT pinned to Microsoft's own mcr.microsoft.com/playwright image: that
+# image's tag must match the installed `playwright` npm package version
+# exactly (mismatched Chromium builds fail to launch), and Microsoft's
+# published tags lag the npm registry — at the time this was written,
+# playwright@1.63.0 had no matching mcr.microsoft.com/playwright tag yet.
+# Installing Chromium via the npm package itself at build time keeps the
+# two permanently in sync without a manual tag bump on every playwright
+# upgrade.
+#
+# What still needs deciding before this runs a real job (Phase 4/7, not
+# built yet): the actual job entrypoint (Cloud Run Jobs + Cloud Tasks), and
+# the per-job tenant font install/teardown step — this image's PDF path
+# doesn't need filesystem font installation at all (see the doc comment on
+# server/brandKit/render/fonts.js for why: fonts are embedded into the HTML
+# as base64 @font-face rules instead), so "install fonts, then clear them"
+# may turn out to be unnecessary here rather than merely deferred.
+
+FROM node:22-slim
+WORKDIR /app
+ENV NODE_ENV=production
+
+COPY package*.json ./
+RUN npm ci --omit=dev
+
+# Chromium + its system dependencies (fonts, X11/GTK libs, etc.) — a real
+# apt install, not a no-op, which is why this can't be node:22-alpine.
+RUN npx playwright install --with-deps chromium
+
+COPY server ./server
+COPY scripts/render-preview.mjs ./scripts/render-preview.mjs
+COPY brand-kit.schema.json document-ir.schema.json ./
+
+# No HTTP surface yet — this image runs the render pipeline as a script
+# (see scripts/render-preview.mjs for the same code path locally), not as a
+# server. A Cloud Run Job entrypoint arrives with Phase 4's job queue.
+ENTRYPOINT ["node", "scripts/render-preview.mjs"]

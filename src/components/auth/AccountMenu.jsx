@@ -71,6 +71,22 @@ export default function AccountMenu({ className = '' }) {
             <p className="m-0 truncate text-sm text-platinum">{profile?.full_name || 'Tester'}</p>
             <p className="m-0 truncate text-xs text-platinum/50">{user?.email}</p>
           </div>
+          <Link
+            to="/brand-kit"
+            role="menuitem"
+            onClick={() => setOpen(false)}
+            className="pressable-text block w-full rounded-lg px-3 py-2 text-left text-sm text-platinum/85 no-underline hover:bg-platinum/5"
+          >
+            Brand Kit
+          </Link>
+          <Link
+            to="/documents"
+            role="menuitem"
+            onClick={() => setOpen(false)}
+            className="pressable-text block w-full rounded-lg px-3 py-2 text-left text-sm text-platinum/85 no-underline hover:bg-platinum/5"
+          >
+            Documents
+          </Link>
           <button
             type="button"
             role="menuitem"

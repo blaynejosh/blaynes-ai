@@ -17,6 +17,23 @@ jobs:
   test:
     name: Eval suite (npm test)
     runs-on: ubuntu-latest
+    # clamd for server/brandKit/virusScan.js's blocking scan gate (see
+    # test/brand-kit-virus-scan.test.js) — a real service container, not a
+    # mock, so the EICAR test actually proves the scanStream() integration
+    # works against real ClamAV, not just that the code compiles. The
+    # health check gates job startup on the socket actually existing:
+    # first boot downloads virus definitions and isn't instant.
+    services:
+      clamd:
+        image: clamav/clamav:stable
+        ports:
+          - 3310:3310
+        options: >-
+          --health-cmd "test -S /tmp/clamd.sock"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 40
+          --health-start-period 10s
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -24,11 +41,22 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      # Phase 3's render tests (test/brand-kit-render-format.test.js) launch
+      # a real headless Chromium via Playwright to produce an actual PDF —
+      # not mocked — so CI needs the same browser install a render container
+      # would carry. --with-deps pulls in the system libraries too (fonts,
+      # X11/GTK), the same way Dockerfile.render does.
+      - run: npx playwright install --with-deps chromium
       # The golden-set eval (test/) runs lexical-only by design — no live
       # GCP credentials needed here, see search.js's calibration notes and
       # test/golden-cases.mjs's closing comment on what this suite does and
       # doesn't cover (live-model prose quality needs a separate, non-CI pass).
+      # CLAMD_HOST turns on the (otherwise self-skipping) brand-kit virus-scan
+      # tests — see the note at the top of that test file.
       - run: npm test
+        env:
+          CLAMD_HOST: localhost
+          CLAMD_PORT: 3310
 
   build:
     name: Build + catalogue leak check
